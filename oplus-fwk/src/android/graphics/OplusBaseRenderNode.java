@@ -1,5 +1,6 @@
 package android.graphics;
 
 public class OplusBaseRenderNode {
-    // Dummy stub
+
+    public OplusBaseRenderNode() {}
 }
