@@ -22,12 +22,12 @@ public class LinearmotorVibrator {
         mVibratorManager = (VibratorManager) context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
     }
 
-    // All vibrate calls use EFFECT_DOUBLE_CLICK (4)
+    // All vibrate calls use EFFECT_CLICK (3)
     public void vibrate(WaveformEffect we) {
         if (mVibrator == null) return;
-        VibrationEffect effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK);
+        VibrationEffect effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK);
         mVibrator.vibrate(effect);
-        Slog.d(TAG, "vibrate (stub) with WaveformEffect -> EFFECT_DOUBLE_CLICK");
+        Slog.d(TAG, "vibrate (stub) with WaveformEffect -> EFFECT_CLICK");
     }
 
     public void cancelVibrate(WaveformEffect we) {
@@ -68,31 +68,31 @@ public class LinearmotorVibrator {
 
     // Create waveform effect – return double-click instead of Oplus proprietary
     public VibrationEffect createWaveformEffect(int effectId, int strength, int repeat) {
-        return VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK);
+        return VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK);
     }
 
     public VibrationEffect createWaveformEffect(String ringtonePath, int strength, int repeat) {
-        return VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK);
+        return VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK);
     }
 
     public void vibrate(VibrationEffect effect, VibrationAttributes attributes) {
         if (mVibrator == null) return;
-        VibrationEffect defaultEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK);
+        VibrationEffect defaultEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK);
         mVibrator.vibrate(defaultEffect);
-        Slog.d(TAG, "vibrate with EFFECT_DOUBLE_CLICK");
+        Slog.d(TAG, "vibrate with EFFECT_CLICK");
     }
 
     public void vibrate(VibrationEffect effect, String reason, VibrationAttributes attributes) {
         if (mVibrator == null) return;
-        VibrationEffect defaultEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK);
+        VibrationEffect defaultEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK);
         mVibrator.vibrate(defaultEffect);
-        Slog.d(TAG, "vibrate with EFFECT_DOUBLE_CLICK");
+        Slog.d(TAG, "vibrate with EFFECT_CLICK");
     }
 
     public void vibrate(int uid, String opPkg, VibrationEffect effect, String reason, VibrationAttributes attributes) {
         if (mVibrator == null) return;
-        VibrationEffect defaultEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK);
+        VibrationEffect defaultEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK);
         mVibrator.vibrate(defaultEffect);
-        Slog.d(TAG, "vibrate with EFFECT_DOUBLE_CLICK");
+        Slog.d(TAG, "vibrate with EFFECT_CLICK");
     }
 }
