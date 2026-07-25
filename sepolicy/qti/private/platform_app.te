@@ -1,0 +1,3 @@
+# Gallery / other platform apps talk to the horae thermal daemon.
+binder_call(platform_app, horae)
+allow platform_app horae_service:service_manager find;
