@@ -181,7 +181,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
         context.sendBroadcast(
             Intent(CHANGED_ACTION).apply {
                 putExtra("position", position)
-                putExtra("mode", mode)
+                putExtra("position_value", mode)
                 putExtra("invertColors", invertColors)
             }
         )
