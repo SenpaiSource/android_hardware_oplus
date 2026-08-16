@@ -24,7 +24,7 @@ import android.view.View;
  */
 public class OplusViewSeamless {
 
-    public interface AnimationCallback {
+    public static class AnimationCallback {
     }
 
     private OplusViewSeamless() {
