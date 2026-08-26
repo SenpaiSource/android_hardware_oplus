@@ -36,7 +36,7 @@ public class OplusFeatureConfigManager {
     }
 
     public boolean hasFeature(String name) {
-        if (!isCallerAllowed()) {
+        if (name == null || !isCallerAllowed()) {
             return false;
         }
         if ("oplus.software.vibrator_lmvibrator".equals(name)) {

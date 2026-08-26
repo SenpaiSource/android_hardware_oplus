@@ -15,6 +15,8 @@ public class OplusBuild {
     public static final int OplusOS_12_0 = 23;
     public static final int OplusOS_12_1 = 24;
     public static final int OplusOS_12_2 = 25;
+    public static final int OplusOS_13_0 = 26;
+    public static final int OplusOS_13_1 = 27;
     public static final int OplusOS_1_0 = 1;
     public static final int OplusOS_1_2 = 2;
     public static final int OplusOS_1_4 = 3;
@@ -61,14 +63,14 @@ public class OplusBuild {
         if (!isCallerAllowed()) {
             return "";
         }
-        return "V12.1";
+        return SystemProperties.get("ro.build.version.oplusrom", "V12.1");
     }
 
     public static int getSubVersion() {
         if (!isCallerAllowed()) {
             return 0;
         }
-        return 19;
+        return SystemProperties.getInt("ro.build.version.oplus.sub_api", 1);
     }
 
     public static int getOplusOSVERSION() {
