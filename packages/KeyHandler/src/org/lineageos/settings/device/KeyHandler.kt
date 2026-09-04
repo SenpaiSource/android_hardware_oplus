@@ -29,14 +29,26 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
     private val notificationManager = context.getSystemService(NotificationManager::class.java)!!
     private val vibrator = context.getSystemService(Vibrator::class.java)!!
 
-    private val packageContext =
-        context.createPackageContext(KeyHandler::class.java.getPackage()!!.name, 0)
+    private val packageContext by lazy {
+        try {
+            context.createPackageContext(
+                KeyHandler::class.java.getPackage()!!.name,
+                Context.CONTEXT_RESTRICTED or Context.CONTEXT_IGNORE_SECURITY,
+            )
+        } catch (e: Exception) {
+            context
+        }
+    }
     private val sharedPreferences
         get() =
-            packageContext.getSharedPreferences(
-                packageContext.packageName + "_preferences",
-                Context.MODE_PRIVATE or Context.MODE_MULTI_PROCESS,
-            )
+            try {
+                packageContext.getSharedPreferences(
+                    "org.lineageos.settings.device_preferences",
+                    Context.MODE_PRIVATE or Context.MODE_MULTI_PROCESS,
+                )
+            } catch (e: Exception) {
+                null
+            }
 
     private val executorService = Executors.newSingleThreadExecutor()
 
@@ -126,10 +138,10 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
             lineageos.providers.LineageSettings.System.getInt(
                 context.contentResolver,
                 key,
-                if (sharedPreferences.getBoolean(key, def)) 1 else 0
+                if (sharedPreferences?.getBoolean(key, def) == true) 1 else 0
             ) == 1
         } catch (e: Throwable) {
-            sharedPreferences.getBoolean(key, def)
+            sharedPreferences?.getBoolean(key, def) ?: def
         }
     }
 
@@ -138,10 +150,10 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
             lineageos.providers.LineageSettings.System.getInt(
                 context.contentResolver,
                 key,
-                sharedPreferences.getString(key, def.toString())?.toIntOrNull() ?: def
+                sharedPreferences?.getString(key, def.toString())?.toIntOrNull() ?: def
             )
         } catch (e: Throwable) {
-            sharedPreferences.getString(key, def.toString())?.toIntOrNull() ?: def
+            sharedPreferences?.getString(key, def.toString())?.toIntOrNull() ?: def
         }
     }
 
