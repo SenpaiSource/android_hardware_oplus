@@ -175,6 +175,19 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                 override fun onAnimationStart(animation: Animator) {
                     isAnimating = true
                     applyUiMode(ringerMode, invertColors)
+                    val transition =
+                        TransitionDrawable(
+                            arrayOf(
+                                frameView.background,
+                                context.resources.getDrawable(
+                                    backgroundFor(rotation, position, flip),
+                                    null,
+                                ),
+                            )
+                        )
+                    frameView.background = transition
+                    transition.setCrossFadeEnabled(true)
+                    transition.startTransition(30)
                 }
 
                 override fun onAnimationEnd(animation: Animator) {
