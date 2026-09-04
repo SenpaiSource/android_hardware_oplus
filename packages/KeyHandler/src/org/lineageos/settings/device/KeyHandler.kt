@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2025 The LineageOS Project
+ * Copyright (C) 2021-2026 The LineageOS Project
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -41,6 +41,8 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
     private val executorService = Executors.newSingleThreadExecutor()
 
     private var wasMuted = false
+    private var currentPosition = POSITION_BOTTOM
+
     private val broadcastReceiver =
         object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
@@ -55,6 +57,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
                     }
 
                     Intent.ACTION_BOOT_COMPLETED -> populateKeyState(true)
+                    CYCLE_ACTION -> cycleNextMode()
                 }
             }
         }
@@ -65,7 +68,9 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
             IntentFilter().apply {
                 addAction(AudioManager.STREAM_MUTE_CHANGED_ACTION)
                 addAction(Intent.ACTION_BOOT_COMPLETED)
+                addAction(CYCLE_ACTION)
             },
+            Context.RECEIVER_EXPORTED,
         )
     }
 
@@ -86,11 +91,25 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
     }
 
     private fun populateKeyState(firstRun: Boolean) {
-        when (File("/proc/tristatekey/tri_state").readText().trim()) {
-            "1" -> handleMode(POSITION_TOP, firstRun)
-            "2" -> handleMode(POSITION_MIDDLE, firstRun)
-            "3" -> handleMode(POSITION_BOTTOM, firstRun)
+        val file = File("/proc/tristatekey/tri_state")
+        if (file.exists()) {
+            when (file.readText().trim()) {
+                "1" -> handleMode(POSITION_TOP, firstRun)
+                "2" -> handleMode(POSITION_MIDDLE, firstRun)
+                "3" -> handleMode(POSITION_BOTTOM, firstRun)
+            }
         }
+    }
+
+    private fun cycleNextMode() {
+        val nextPosition = when (currentPosition) {
+            POSITION_BOTTOM -> POSITION_MIDDLE
+            POSITION_MIDDLE -> POSITION_TOP
+            POSITION_TOP -> POSITION_BOTTOM
+            else -> POSITION_BOTTOM
+        }
+        currentPosition = nextPosition
+        handleMode(nextPosition, false)
     }
 
     private fun vibrateIfNeeded(mode: Int) {
@@ -102,18 +121,41 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
         }
     }
 
+    private fun getSettingBoolean(key: String, def: Boolean): Boolean {
+        return try {
+            lineageos.providers.LineageSettings.System.getInt(
+                context.contentResolver,
+                key,
+                if (sharedPreferences.getBoolean(key, def)) 1 else 0
+            ) == 1
+        } catch (e: Throwable) {
+            sharedPreferences.getBoolean(key, def)
+        }
+    }
+
+    private fun getSettingInt(key: String, def: Int): Int {
+        return try {
+            lineageos.providers.LineageSettings.System.getInt(
+                context.contentResolver,
+                key,
+                sharedPreferences.getString(key, def.toString())?.toIntOrNull() ?: def
+            )
+        } catch (e: Throwable) {
+            sharedPreferences.getString(key, def.toString())?.toIntOrNull() ?: def
+        }
+    }
+
     private fun handleMode(position: Int, firstRun: Boolean) {
-        val muteMedia = sharedPreferences.getBoolean(MUTE_MEDIA_WITH_SILENT, false)
-        val showDialog = sharedPreferences.getBoolean(SHOW_DIALOG, true)
-        val invertColors = sharedPreferences.getBoolean(INVERT_COLORS, false)
+        currentPosition = position
+        val muteMedia = getSettingBoolean(MUTE_MEDIA_WITH_SILENT, false)
+        val showDialog = getSettingBoolean(SHOW_DIALOG, true)
+        val invertColors = getSettingBoolean(INVERT_COLORS, false)
 
         val mode =
             when (position) {
-                POSITION_TOP -> sharedPreferences.getString(ALERT_SLIDER_TOP_KEY, "0")!!.toInt()
-                POSITION_MIDDLE ->
-                    sharedPreferences.getString(ALERT_SLIDER_MIDDLE_KEY, "1")!!.toInt()
-                POSITION_BOTTOM ->
-                    sharedPreferences.getString(ALERT_SLIDER_BOTTOM_KEY, "2")!!.toInt()
+                POSITION_TOP -> getSettingInt(ALERT_SLIDER_TOP_KEY, 0)
+                POSITION_MIDDLE -> getSettingInt(ALERT_SLIDER_MIDDLE_KEY, 1)
+                POSITION_BOTTOM -> getSettingInt(ALERT_SLIDER_BOTTOM_KEY, 2)
                 else -> return
             }
 
@@ -190,6 +232,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
 
         // Intent actions
         const val CHANGED_ACTION = "org.lineageos.settings.UPDATE_SETTINGS"
+        const val CYCLE_ACTION = "org.lineageos.settings.CYCLE_RINGER_MODE"
 
         // Slider key positions
         const val POSITION_TOP = 1
