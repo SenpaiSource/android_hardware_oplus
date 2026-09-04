@@ -74,7 +74,7 @@ class AlertSliderPlugin : OverlayPlugin {
                 addAction(Intent.ACTION_CONFIGURATION_CHANGED)
                 addAction(KeyHandler.CHANGED_ACTION)
             }
-        plugin.registerReceiver(updateReceiver, filter)
+        plugin.registerReceiver(updateReceiver, filter, Context.RECEIVER_EXPORTED)
     }
 
     override fun onDestroy() {
