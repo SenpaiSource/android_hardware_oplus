@@ -22,6 +22,7 @@ import android.view.KeyEvent
 import com.android.internal.os.DeviceKeyHandler
 import java.io.File
 import java.util.concurrent.Executors
+import lineageos.providers.LineageSettings
 
 class KeyHandler(private val context: Context) : DeviceKeyHandler {
     private val audioManager = context.getSystemService(AudioManager::class.java)!!
@@ -135,7 +136,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
 
     private fun getSettingBoolean(key: String, def: Boolean): Boolean {
         return try {
-            lineageos.providers.LineageSettings.System.getInt(
+            LineageSettings.System.getInt(
                 context.contentResolver,
                 key,
                 if (sharedPreferences?.getBoolean(key, def) == true) 1 else 0
@@ -147,7 +148,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
 
     private fun getSettingInt(key: String, def: Int): Int {
         return try {
-            lineageos.providers.LineageSettings.System.getInt(
+            LineageSettings.System.getInt(
                 context.contentResolver,
                 key,
                 sharedPreferences?.getString(key, def.toString())?.toIntOrNull() ?: def
