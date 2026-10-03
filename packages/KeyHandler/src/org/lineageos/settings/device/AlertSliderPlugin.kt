@@ -201,7 +201,7 @@ class AlertSliderPlugin : OverlayPlugin {
         private const val MSG_DIALOG_RESET = 3
         private const val MSG_DIALOG_UPDATE = 4
         private const val MSG_DIALOG_RECREATE = 5
-        private const val DIALOG_TIMEOUT = 3000L
+        private const val DIALOG_TIMEOUT = 1500L
 
         // Dialog
         private const val DISABLED = 0
