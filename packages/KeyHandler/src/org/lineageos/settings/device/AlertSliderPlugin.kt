@@ -146,6 +146,16 @@ class AlertSliderPlugin : OverlayPlugin {
 
         private fun handleUpdate(info: NotificationInfo) {
             synchronized(dialogLock) {
+                // The tri-state key position can be re-announced (same position,
+                // same mode) well after the previous dialog has already
+                // auto-dismissed - e.g. on pickup/tilt, several seconds apart,
+                // with no real slider movement in between. Suppress any repeat
+                // of the exact same state unconditionally, and only clear the
+                // suppression once a genuinely different state is delivered.
+                if (info == lastInfo) {
+                    return
+                }
+
                 lastInfo = info
                 handleResetTimeout()
                 launchDozePulse()
