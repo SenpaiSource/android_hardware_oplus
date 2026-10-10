@@ -235,7 +235,6 @@ ndk::ScopedAStatus Vibrator::getSupportedPrimitives(
         CompositePrimitive::QUICK_FALL,
         CompositePrimitive::LIGHT_TICK,
         CompositePrimitive::LOW_TICK,
-        CompositePrimitive::TICK,
     };
     return ndk::ScopedAStatus::ok();
 }
@@ -261,7 +260,6 @@ ndk::ScopedAStatus Vibrator::getPrimitiveDuration(CompositePrimitive primitive,
             break;
         case CompositePrimitive::LIGHT_TICK:
         case CompositePrimitive::LOW_TICK:
-        case CompositePrimitive::TICK:
         default:
             *durationMs = 12;
             break;
@@ -303,7 +301,6 @@ ndk::ScopedAStatus Vibrator::compose(const std::vector<CompositeEffect>& composi
                     aac_effect = 0x1000;
                     strength = 2;
                     break;
-                case CompositePrimitive::TICK:
                 case CompositePrimitive::LIGHT_TICK:
                 case CompositePrimitive::LOW_TICK:
                 case CompositePrimitive::QUICK_RISE:
