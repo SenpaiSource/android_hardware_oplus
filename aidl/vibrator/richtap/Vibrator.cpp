@@ -38,29 +38,31 @@ Vibrator::Vibrator() {
 
 static uint32_t mapEffectToAacId(Effect effect, int32_t* outStrengthOverride) {
     int32_t id = static_cast<int32_t>(effect);
-    // Already an AAC prebaked effect ID (0x1000..0x1002)
-    if (id >= 0x1000 && id <= 0x1002) {
+
+    // Direct AAC prebaked effect ID (0x1000..0x1002) or JND effect ID (0x3001..0x300b) pass-through
+    if ((id >= 0x1000 && id <= 0x1002) || (id >= 0x3001 && id <= 0x300b)) {
         return static_cast<uint32_t>(id);
     }
 
     switch (effect) {
         case Effect::CLICK:
-            return 0x1000;
+            return 0x1002;
         case Effect::DOUBLE_CLICK:
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1001;
         case Effect::TICK:
-            return 0x1002;
+            return 0x1000;
         case Effect::THUD:
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
-            return 0x1000;
+            return 0x1001;
         case Effect::POP:
             return 0x1002;
         case Effect::HEAVY_CLICK:
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
-            return 0x1000;
+            return 0x1001;
         case Effect::TEXTURE_TICK:
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_LIGHT_STRENGTH;
-            return 0x1002;
+            return 0x1000;
         default:
             break;
     }
@@ -69,40 +71,47 @@ static uint32_t mapEffectToAacId(Effect effect, int32_t* outStrengthOverride) {
     switch (id) {
         case 68: // EFFECT_OOS_GRANULAR_WEAK
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_LIGHT_STRENGTH;
-            return 0x1002;
-        case 69: // EFFECT_OOS_GRANULAR_STRONG
+            return 0x1000;
+        case 69: // EFFECT_OOS_GRANULAR_STRONG (KEYBOARD_TAP / SIGNATURE DETENT)
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
-            return 0x1000;
-        case 2:  // EFFECT_OOS_MODERATE_SHORT
-            return 0x1000;
+            return 0x1002;
+        case 2:  // EFFECT_OOS_MODERATE_SHORT (CONFIRM / LONG_PRESS)
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_MEDIUM_STRENGTH;
+            return 0x1001;
         case 3:  // EFFECT_OOS_MODERATE_SHORT_TWICE
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1001;
         case 9:
-        case 10:
+            return 0x1002;
+        case 10: // EFFECT_OOS_MICRO_TICK (KEYBOARD_RELEASE / SCROLL_TICK)
         case 11:
         case 12:
-            return 0x1002;
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_LIGHT_STRENGTH;
+            return 0x1000;
         case 156: // EFFECT_OOS_FINGERPRINT_CORRECT
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1001;
         case 157: // KEYBOARD_WEAK
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_LIGHT_STRENGTH;
-            return 0x1002;
-        case 158: // KEYBOARD_MEDIUM
             return 0x1000;
+        case 158: // KEYBOARD_MEDIUM
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_MEDIUM_STRENGTH;
+            return 0x1002;
         case 159: // KEYBOARD_STRONG
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
-            return 0x1000;
+            return 0x1002;
         case 308: // ALERTSLIDER_DOWN
         case 430: // THREE_STAGE_KEY
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
-            return 0x1000;
+            return 0x1001;
+        case 368: // EFFECT_OOS_VIRTUAL_KEY
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
+            return 0x1002;
         case 409: // SCREENSHOT
             if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1001;
         default:
-            return 0x1000;
+            return 0x1002;
     }
 }
 
@@ -191,9 +200,24 @@ ndk::ScopedAStatus Vibrator::perform(Effect effect, EffectStrength es,
 }
 
 ndk::ScopedAStatus Vibrator::getSupportedEffects(std::vector<Effect>* _aidl_return) {
-    *_aidl_return = {Effect::CLICK, Effect::DOUBLE_CLICK, Effect::TICK,
-                     Effect::THUD,  Effect::POP,          Effect::HEAVY_CLICK,
-                     Effect::TEXTURE_TICK};
+    *_aidl_return = {
+        Effect::CLICK, Effect::DOUBLE_CLICK, Effect::TICK,
+        Effect::THUD,  Effect::POP,          Effect::HEAVY_CLICK,
+        Effect::TEXTURE_TICK,
+        static_cast<Effect>(2),   // EFFECT_OOS_MODERATE_SHORT
+        static_cast<Effect>(3),   // EFFECT_OOS_MODERATE_SHORT_TWICE
+        static_cast<Effect>(10),  // EFFECT_OOS_MICRO_TICK
+        static_cast<Effect>(68),  // EFFECT_OOS_GRANULAR_WEAK
+        static_cast<Effect>(69),  // EFFECT_OOS_GRANULAR_STRONG
+        static_cast<Effect>(156), // EFFECT_OOS_FINGERPRINT_CORRECT
+        static_cast<Effect>(157), // EFFECT_OOS_KEYBOARD_WEAK
+        static_cast<Effect>(158), // EFFECT_OOS_KEYBOARD_MEDIUM
+        static_cast<Effect>(159), // EFFECT_OOS_KEYBOARD_STRONG
+        static_cast<Effect>(308), // EFFECT_OOS_ALERTSLIDER_DOWN
+        static_cast<Effect>(368), // EFFECT_OOS_VIRTUAL_KEY
+        static_cast<Effect>(409), // EFFECT_OOS_SCREENSHOT
+        static_cast<Effect>(430), // EFFECT_OOS_THREE_STAGE_KEY
+    };
 
     return ndk::ScopedAStatus::ok();
 }
@@ -244,24 +268,22 @@ ndk::ScopedAStatus Vibrator::getPrimitiveDuration(CompositePrimitive primitive,
     switch (primitive) {
         case CompositePrimitive::CLICK:
         case CompositePrimitive::SPIN:
-            *durationMs = 22;
+        case CompositePrimitive::QUICK_FALL:
+            *durationMs = 28;
             break;
         case CompositePrimitive::THUD:
-            *durationMs = 30;
+            *durationMs = 82;
             break;
         case CompositePrimitive::QUICK_RISE:
-            *durationMs = 10;
+            *durationMs = 15;
             break;
         case CompositePrimitive::SLOW_RISE:
-            *durationMs = 40;
-            break;
-        case CompositePrimitive::QUICK_FALL:
-            *durationMs = 16;
+            *durationMs = 45;
             break;
         case CompositePrimitive::LIGHT_TICK:
         case CompositePrimitive::LOW_TICK:
         default:
-            *durationMs = 12;
+            *durationMs = 11;
             break;
     }
     return ndk::ScopedAStatus::ok();
@@ -282,7 +304,7 @@ ndk::ScopedAStatus Vibrator::compose(const std::vector<CompositeEffect>& composi
                 usleep(effect.delayMs * 1000);
             }
 
-            uint32_t aac_effect = 0x1000;
+            uint32_t aac_effect = 0x1002;
             int32_t strength = RICHTAP_MEDIUM_STRENGTH;
 
             if (effect.scale <= 0.35f) {
@@ -294,24 +316,34 @@ ndk::ScopedAStatus Vibrator::compose(const std::vector<CompositeEffect>& composi
             switch (effect.primitive) {
                 case CompositePrimitive::CLICK:
                 case CompositePrimitive::SPIN:
-                    aac_effect = 0x1000;
+                    aac_effect = 0x1002;
                     break;
                 case CompositePrimitive::THUD:
-                case CompositePrimitive::QUICK_FALL:
-                    aac_effect = 0x1000;
+                    aac_effect = 0x1001;
                     strength = RICHTAP_STRONG_STRENGTH;
+                    break;
+                case CompositePrimitive::QUICK_FALL:
+                    aac_effect = 0x1002;
+                    strength = RICHTAP_STRONG_STRENGTH;
+                    break;
+                case CompositePrimitive::QUICK_RISE:
+                    aac_effect = 0x1002;
+                    strength = RICHTAP_MEDIUM_STRENGTH;
+                    break;
+                case CompositePrimitive::SLOW_RISE:
+                    aac_effect = 0x1001;
+                    strength = RICHTAP_MEDIUM_STRENGTH;
                     break;
                 case CompositePrimitive::LIGHT_TICK:
                 case CompositePrimitive::LOW_TICK:
-                case CompositePrimitive::QUICK_RISE:
-                case CompositePrimitive::SLOW_RISE:
                 default:
-                    aac_effect = 0x1002;
+                    aac_effect = 0x1000;
+                    strength = RICHTAP_LIGHT_STRENGTH;
                     break;
             }
 
             int32_t playRet = aac_vibra_looper_prebaked_effect(aac_effect, strength);
-            int32_t waitTime = playRet > 0 ? playRet : 15;
+            int32_t waitTime = playRet > 0 ? playRet : 20;
             usleep(waitTime * 1000);
         }
 
