@@ -36,9 +36,79 @@ Vibrator::Vibrator() {
     ALOGI("AAC init success: %u\n", deviceType);
 }
 
+static uint32_t mapEffectToAacId(Effect effect, int32_t* outStrengthOverride) {
+    int32_t id = static_cast<int32_t>(effect);
+    // Already an AAC prebaked effect ID (0x1000..0x1002)
+    if (id >= 0x1000 && id <= 0x1002) {
+        return static_cast<uint32_t>(id);
+    }
+
+    switch (effect) {
+        case Effect::CLICK:
+            return 0x1000;
+        case Effect::DOUBLE_CLICK:
+            return 0x1001;
+        case Effect::TICK:
+            return 0x1002;
+        case Effect::THUD:
+            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            return 0x1000;
+        case Effect::POP:
+            return 0x1002;
+        case Effect::HEAVY_CLICK:
+            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            return 0x1000;
+        case Effect::TEXTURE_TICK:
+            if (outStrengthOverride) *outStrengthOverride = 0; // LIGHT
+            return 0x1002;
+        default:
+            break;
+    }
+
+    // RichTap / OOS vendor effects passed down through prebaked IDs
+    switch (id) {
+        case 68: // EFFECT_OOS_GRANULAR_WEAK
+            if (outStrengthOverride) *outStrengthOverride = 0; // LIGHT
+            return 0x1002;
+        case 69: // EFFECT_OOS_GRANULAR_STRONG
+            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            return 0x1000;
+        case 2:  // EFFECT_OOS_MODERATE_SHORT
+            return 0x1000;
+        case 3:  // EFFECT_OOS_MODERATE_SHORT_TWICE
+            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            return 0x1001;
+        case 9:
+        case 10:
+        case 11:
+        case 12:
+            return 0x1002;
+        case 156: // EFFECT_OOS_FINGERPRINT_CORRECT
+            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            return 0x1001;
+        case 157: // KEYBOARD_WEAK
+            if (outStrengthOverride) *outStrengthOverride = 0; // LIGHT
+            return 0x1002;
+        case 158: // KEYBOARD_MEDIUM
+            return 0x1000;
+        case 159: // KEYBOARD_STRONG
+            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            return 0x1000;
+        case 308: // ALERTSLIDER_DOWN
+        case 430: // THREE_STAGE_KEY
+            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            return 0x1000;
+        case 409: // SCREENSHOT
+            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            return 0x1001;
+        default:
+            return 0x1000;
+    }
+}
+
 ndk::ScopedAStatus Vibrator::getCapabilities(int32_t* _aidl_return) {
     *_aidl_return = IVibrator::CAP_ON_CALLBACK | IVibrator::CAP_PERFORM_CALLBACK |
-                    IVibrator::CAP_AMPLITUDE_CONTROL;
+                    IVibrator::CAP_AMPLITUDE_CONTROL | IVibrator::CAP_COMPOSE_EFFECTS;
 
     return ndk::ScopedAStatus::ok();
 }
@@ -76,27 +146,36 @@ ndk::ScopedAStatus Vibrator::perform(Effect effect, EffectStrength es,
                                      int32_t* _aidl_return) {
     int32_t strength;
 
-    if (effect < Effect::CLICK || effect > Effect::HEAVY_CLICK)
-        return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
-
     switch (es) {
         case EffectStrength::LIGHT:
-            strength = RICHTAP_LIGHT_STRENGTH;
+            strength = 0;
             break;
         case EffectStrength::MEDIUM:
-            strength = RICHTAP_MEDIUM_STRENGTH;
+            strength = 1;
             break;
         case EffectStrength::STRONG:
-            strength = RICHTAP_STRONG_STRENGTH;
+            strength = 2;
             break;
         default:
-            return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+            strength = 1;
+            break;
     }
 
-    int32_t ret = aac_vibra_looper_prebaked_effect(static_cast<uint32_t>(effect), strength);
+    int32_t strengthOverride = -1;
+    uint32_t aac_effect = mapEffectToAacId(effect, &strengthOverride);
+    if (strengthOverride >= 0) {
+        strength = strengthOverride;
+    }
+
+    int32_t ret = aac_vibra_looper_prebaked_effect(aac_effect, strength);
     if (ret < 0) {
-        ALOGE("AAC perform failed: %d\n", ret);
-        return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_SERVICE_SPECIFIC));
+        ALOGW("AAC perform failed for effect %d (aac 0x%x): %d, fallback to looper on\n",
+              static_cast<int32_t>(effect), aac_effect, ret);
+        ret = aac_vibra_looper_on(25);
+    }
+
+    if (ret <= 0) {
+        ret = 25;
     }
 
     if (callback != nullptr) {
@@ -113,7 +192,8 @@ ndk::ScopedAStatus Vibrator::perform(Effect effect, EffectStrength es,
 
 ndk::ScopedAStatus Vibrator::getSupportedEffects(std::vector<Effect>* _aidl_return) {
     *_aidl_return = {Effect::CLICK, Effect::DOUBLE_CLICK, Effect::TICK,
-                     Effect::THUD,  Effect::POP,          Effect::HEAVY_CLICK};
+                     Effect::THUD,  Effect::POP,          Effect::HEAVY_CLICK,
+                     Effect::TEXTURE_TICK};
 
     return ndk::ScopedAStatus::ok();
 }
@@ -134,27 +214,116 @@ ndk::ScopedAStatus Vibrator::setExternalControl(bool enabled __unused) {
     return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
 }
 
-ndk::ScopedAStatus Vibrator::getCompositionDelayMax(int32_t* maxDelayMs __unused) {
-    return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
-}
-
-ndk::ScopedAStatus Vibrator::getCompositionSizeMax(int32_t* maxSize __unused) {
-    return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
-}
-
-ndk::ScopedAStatus Vibrator::getSupportedPrimitives(
-        std::vector<CompositePrimitive>* supported __unused) {
+ndk::ScopedAStatus Vibrator::getCompositionDelayMax(int32_t* maxDelayMs) {
+    *maxDelayMs = 5000;
     return ndk::ScopedAStatus::ok();
 }
 
-ndk::ScopedAStatus Vibrator::getPrimitiveDuration(CompositePrimitive primitive __unused,
-                                                  int32_t* durationMs __unused) {
-    return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+ndk::ScopedAStatus Vibrator::getCompositionSizeMax(int32_t* maxSize) {
+    *maxSize = 100;
+    return ndk::ScopedAStatus::ok();
 }
 
-ndk::ScopedAStatus Vibrator::compose(const std::vector<CompositeEffect>& composite __unused,
-                                     const std::shared_ptr<IVibratorCallback>& callback __unused) {
-    return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+ndk::ScopedAStatus Vibrator::getSupportedPrimitives(
+        std::vector<CompositePrimitive>* supported) {
+    *supported = {
+        CompositePrimitive::CLICK,
+        CompositePrimitive::THUD,
+        CompositePrimitive::SPIN,
+        CompositePrimitive::QUICK_RISE,
+        CompositePrimitive::SLOW_RISE,
+        CompositePrimitive::QUICK_FALL,
+        CompositePrimitive::LIGHT_TICK,
+        CompositePrimitive::LOW_TICK,
+        CompositePrimitive::TICK,
+    };
+    return ndk::ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Vibrator::getPrimitiveDuration(CompositePrimitive primitive,
+                                                  int32_t* durationMs) {
+    switch (primitive) {
+        case CompositePrimitive::CLICK:
+        case CompositePrimitive::SPIN:
+            *durationMs = 22;
+            break;
+        case CompositePrimitive::THUD:
+            *durationMs = 30;
+            break;
+        case CompositePrimitive::QUICK_RISE:
+            *durationMs = 10;
+            break;
+        case CompositePrimitive::SLOW_RISE:
+            *durationMs = 40;
+            break;
+        case CompositePrimitive::QUICK_FALL:
+            *durationMs = 16;
+            break;
+        case CompositePrimitive::LIGHT_TICK:
+        case CompositePrimitive::LOW_TICK:
+        case CompositePrimitive::TICK:
+        default:
+            *durationMs = 12;
+            break;
+    }
+    return ndk::ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Vibrator::compose(const std::vector<CompositeEffect>& composite,
+                                     const std::shared_ptr<IVibratorCallback>& callback) {
+    if (composite.empty()) {
+        return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_ILLEGAL_ARGUMENT));
+    }
+    if (composite.size() > 100) {
+        return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_ILLEGAL_ARGUMENT));
+    }
+
+    std::thread([=]() {
+        for (const auto& effect : composite) {
+            if (effect.delayMs > 0) {
+                usleep(effect.delayMs * 1000);
+            }
+
+            uint32_t aac_effect = 0x1000;
+            int32_t strength = 1;
+
+            if (effect.scale <= 0.35f) {
+                strength = 0;
+            } else if (effect.scale >= 0.75f) {
+                strength = 2;
+            }
+
+            switch (effect.primitive) {
+                case CompositePrimitive::CLICK:
+                case CompositePrimitive::SPIN:
+                    aac_effect = 0x1000;
+                    break;
+                case CompositePrimitive::THUD:
+                case CompositePrimitive::QUICK_FALL:
+                    aac_effect = 0x1000;
+                    strength = 2;
+                    break;
+                case CompositePrimitive::TICK:
+                case CompositePrimitive::LIGHT_TICK:
+                case CompositePrimitive::LOW_TICK:
+                case CompositePrimitive::QUICK_RISE:
+                case CompositePrimitive::SLOW_RISE:
+                default:
+                    aac_effect = 0x1002;
+                    break;
+            }
+
+            int32_t playRet = aac_vibra_looper_prebaked_effect(aac_effect, strength);
+            int32_t waitTime = playRet > 0 ? playRet : 15;
+            usleep(waitTime * 1000);
+        }
+
+        if (callback != nullptr) {
+            callback->onComplete();
+        }
+    }).detach();
+
+    return ndk::ScopedAStatus::ok();
 }
 
 ndk::ScopedAStatus Vibrator::getSupportedAlwaysOnEffects(
