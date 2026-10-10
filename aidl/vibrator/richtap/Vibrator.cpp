@@ -51,15 +51,15 @@ static uint32_t mapEffectToAacId(Effect effect, int32_t* outStrengthOverride) {
         case Effect::TICK:
             return 0x1002;
         case Effect::THUD:
-            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1000;
         case Effect::POP:
             return 0x1002;
         case Effect::HEAVY_CLICK:
-            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1000;
         case Effect::TEXTURE_TICK:
-            if (outStrengthOverride) *outStrengthOverride = 0; // LIGHT
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_LIGHT_STRENGTH;
             return 0x1002;
         default:
             break;
@@ -68,15 +68,15 @@ static uint32_t mapEffectToAacId(Effect effect, int32_t* outStrengthOverride) {
     // RichTap / OOS vendor effects passed down through prebaked IDs
     switch (id) {
         case 68: // EFFECT_OOS_GRANULAR_WEAK
-            if (outStrengthOverride) *outStrengthOverride = 0; // LIGHT
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_LIGHT_STRENGTH;
             return 0x1002;
         case 69: // EFFECT_OOS_GRANULAR_STRONG
-            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1000;
         case 2:  // EFFECT_OOS_MODERATE_SHORT
             return 0x1000;
         case 3:  // EFFECT_OOS_MODERATE_SHORT_TWICE
-            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1001;
         case 9:
         case 10:
@@ -84,22 +84,22 @@ static uint32_t mapEffectToAacId(Effect effect, int32_t* outStrengthOverride) {
         case 12:
             return 0x1002;
         case 156: // EFFECT_OOS_FINGERPRINT_CORRECT
-            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1001;
         case 157: // KEYBOARD_WEAK
-            if (outStrengthOverride) *outStrengthOverride = 0; // LIGHT
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_LIGHT_STRENGTH;
             return 0x1002;
         case 158: // KEYBOARD_MEDIUM
             return 0x1000;
         case 159: // KEYBOARD_STRONG
-            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1000;
         case 308: // ALERTSLIDER_DOWN
         case 430: // THREE_STAGE_KEY
-            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1000;
         case 409: // SCREENSHOT
-            if (outStrengthOverride) *outStrengthOverride = 2; // STRONG
+            if (outStrengthOverride) *outStrengthOverride = RICHTAP_STRONG_STRENGTH;
             return 0x1001;
         default:
             return 0x1000;
@@ -148,16 +148,16 @@ ndk::ScopedAStatus Vibrator::perform(Effect effect, EffectStrength es,
 
     switch (es) {
         case EffectStrength::LIGHT:
-            strength = 0;
+            strength = RICHTAP_LIGHT_STRENGTH;
             break;
         case EffectStrength::MEDIUM:
-            strength = 1;
+            strength = RICHTAP_MEDIUM_STRENGTH;
             break;
         case EffectStrength::STRONG:
-            strength = 2;
+            strength = RICHTAP_STRONG_STRENGTH;
             break;
         default:
-            strength = 1;
+            strength = RICHTAP_MEDIUM_STRENGTH;
             break;
     }
 
@@ -283,12 +283,12 @@ ndk::ScopedAStatus Vibrator::compose(const std::vector<CompositeEffect>& composi
             }
 
             uint32_t aac_effect = 0x1000;
-            int32_t strength = 1;
+            int32_t strength = RICHTAP_MEDIUM_STRENGTH;
 
             if (effect.scale <= 0.35f) {
-                strength = 0;
+                strength = RICHTAP_LIGHT_STRENGTH;
             } else if (effect.scale >= 0.75f) {
-                strength = 2;
+                strength = RICHTAP_STRONG_STRENGTH;
             }
 
             switch (effect.primitive) {
@@ -299,7 +299,7 @@ ndk::ScopedAStatus Vibrator::compose(const std::vector<CompositeEffect>& composi
                 case CompositePrimitive::THUD:
                 case CompositePrimitive::QUICK_FALL:
                     aac_effect = 0x1000;
-                    strength = 2;
+                    strength = RICHTAP_STRONG_STRENGTH;
                     break;
                 case CompositePrimitive::LIGHT_TICK:
                 case CompositePrimitive::LOW_TICK:

@@ -12,6 +12,9 @@
 using aidl::android::hardware::vibrator::Vibrator;
 
 int main() {
+    setenv("RICHTAP_DEVICE_PATH", "/dev/awinic_haptic", 0);
+    setenv("ENV_RICHTAP_CONFIG_PATH", "/odm/etc/aac_richtap.config", 0);
+
     ABinderProcess_setThreadPoolMaxThreadCount(0);
     std::shared_ptr<Vibrator> vib = ndk::SharedRefBase::make<Vibrator>();
 
