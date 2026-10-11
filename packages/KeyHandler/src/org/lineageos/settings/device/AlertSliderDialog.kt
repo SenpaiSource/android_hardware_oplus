@@ -18,7 +18,9 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.TransitionDrawable
+import android.hardware.display.DisplayManager
 import android.media.AudioManager
+import android.view.Display
 import android.view.Gravity
 import android.view.Surface
 import android.view.ViewGroup
@@ -38,8 +40,15 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
     private val iconView by lazy { findViewById<ImageView>(R.id.alert_slider_icon)!! }
     private val textView by lazy { findViewById<TextView>(R.id.alert_slider_text)!! }
 
-    private val rotation: Int = context.getDisplay().getRotation()
-    private val isLandscape = rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270
+    private val rotation: Int
+        get() {
+            return window?.decorView?.display?.rotation
+                ?: (sysuiContext.getSystemService(DisplayManager::class.java)
+                    ?: context.getSystemService(DisplayManager::class.java))?.getDisplay(Display.DEFAULT_DISPLAY)?.rotation
+                ?: Surface.ROTATION_0
+        }
+    private val isLandscape: Boolean
+        get() = rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270
     private val flip = context.resources.getBoolean(R.bool.alert_slider_dialog_left)
 
     private val length: Int
@@ -179,9 +188,8 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
                         TransitionDrawable(
                             arrayOf(
                                 frameView.background,
-                                context.resources.getDrawable(
+                                context.getDrawable(
                                     backgroundFor(rotation, position, flip),
-                                    null,
                                 ),
                             )
                         )
@@ -314,6 +322,9 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
     }
 
     override fun show() {
+        if (isShowing) {
+            return
+        }
         dialogView.alpha = 0f
         super.show()
         dialogView
@@ -325,12 +336,21 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
     }
 
     override fun dismiss() {
+        if (!isShowing) {
+            return
+        }
         dialogView
             .animate()
             .alpha(0f)
             .setDuration(200)
             .setInterpolator(AccelerateInterpolator())
-            .withEndAction { super.dismiss() }
+            .withEndAction {
+                try {
+                    super.dismiss()
+                } catch (e: Throwable) {
+                    // Ignored if window already detached
+                }
+            }
             .start()
     }
 
