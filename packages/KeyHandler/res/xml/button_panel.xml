@@ -14,7 +14,7 @@
             android:key="config_mute_media"
             android:title="@string/alert_slider_mute_media_title"
             android:summary="@string/alert_slider_mute_media_summary"
-            android:defaultValue="0" />
+            android:defaultValue="false" />
 
         <ListPreference
             android:key="config_top_position"
@@ -48,6 +48,17 @@
             android:title="@string/alert_slider_notification_dialog_title"
             android:summary="@string/alert_slider_notification_dialog_summary"
             android:defaultValue="true" />
+
+        <ListPreference
+            android:key="config_dialog_location"
+            android:dialogTitle="@string/alert_slider_dialog_location_title"
+            android:entries="@array/alert_slider_dialog_location_entries"
+            android:entryValues="@array/alert_slider_dialog_location_entry_values"
+            android:defaultValue="@string/config_alert_slider_dialog_location_default"
+            android:title="@string/alert_slider_dialog_location_title"
+            android:summary="@string/alert_slider_dialog_location_summary"
+            android:dependency="config_show_dialog"
+            app:useSimpleSummaryProvider="true" />
 
         <SwitchPreferenceCompat
             android:key="config_invert_colors"
