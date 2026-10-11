@@ -18,4 +18,15 @@
     <dimen name="alert_slider_text_size">11sp</dimen>
     <dimen name="alert_slider_directional_radius">4dp</dimen>
     <dimen name="alert_slider_corner_radius">28dp</dimen>
+
+    <!-- Dynamic Island Alert Slider -->
+    <dimen name="alert_slider_island_height">32dp</dimen>
+    <dimen name="alert_slider_island_min_width">132dp</dimen>
+    <dimen name="alert_slider_island_padding_horizontal">10dp</dimen>
+    <dimen name="alert_slider_island_icon_size">16dp</dimen>
+    <dimen name="alert_slider_island_cutout_gap_default">38dp</dimen>
+    <dimen name="alert_slider_island_corner_radius">100dp</dimen>
+    <dimen name="alert_slider_island_text_size">13sp</dimen>
+    <dimen name="alert_slider_island_text_max_width">130dp</dimen>
+    <dimen name="alert_slider_island_stroke_width">1dp</dimen>
 </resources>
