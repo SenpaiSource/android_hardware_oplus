@@ -18,10 +18,16 @@
     <string name="alert_slider_mode_dnd_priority_only">Priority only</string>
     <string name="alert_slider_mode_dnd_total_silence">Total silence</string>
     <string name="alert_slider_mode_dnd_alarms_only">Alarms only</string>
+    <string name="alert_slider_mode_torch_on">Flashlight on</string>
+    <string name="alert_slider_mode_torch_off">Flashlight off</string>
     <string name="alert_slider_mute_media_title">Mute media</string>
     <string name="alert_slider_mute_media_summary">Mute media when switching to silent</string>
     <string name="alert_slider_notification_dialog_title">Show slider dialog</string>
     <string name="alert_slider_notification_dialog_summary">Display a dialog when the alert slider position changes</string>
     <string name="alert_slider_invert_colors_title">Invert dialog colors</string>
     <string name="alert_slider_invert_colors_summary">Swap the icon/text and background colors of the alert slider dialog</string>
+    <string name="alert_slider_dialog_location_title">Dialog location</string>
+    <string name="alert_slider_dialog_location_summary">Choose where the alert slider dialog appears</string>
+    <string name="alert_slider_dialog_location_side">Side</string>
+    <string name="alert_slider_dialog_location_island">Dynamic Island</string>
 </resources>

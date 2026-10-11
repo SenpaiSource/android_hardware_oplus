@@ -13,4 +13,7 @@
          Should also match side of the device where the physical switch
          is located. -->
     <item name="alert_slider_dialog_left" type="bool">false</item>
+
+    <!-- Default dialog location: 0 = side, 1 = dynamic island -->
+    <string name="config_alert_slider_dialog_location_default" translatable="false">0</string>
 </resources>
