@@ -52,6 +52,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
     private var showDialog = true
     private var invertColors = false
     private var dialogLocation = DIALOG_LOCATION_SIDE
+    private var islandStyle = ISLAND_STYLE_STANDARD
     private var topPosition = 0
     private var middlePosition = 1
     private var bottomPosition = 2
@@ -177,6 +178,9 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
         if (intent.hasExtra(ALERT_SLIDER_BOTTOM_KEY)) {
             bottomPosition = intent.getIntExtra(ALERT_SLIDER_BOTTOM_KEY, bottomPosition)
         }
+        if (intent.hasExtra(ALERT_SLIDER_ISLAND_STYLE)) {
+            islandStyle = intent.getIntExtra(ALERT_SLIDER_ISLAND_STYLE, islandStyle)
+        }
     }
 
     private fun refreshSettings() {
@@ -184,6 +188,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
         showDialog = getSettingBoolean(SHOW_DIALOG, true)
         invertColors = getSettingBoolean(INVERT_COLORS, false)
         dialogLocation = getSettingInt(DIALOG_LOCATION, DIALOG_LOCATION_SIDE)
+        islandStyle = getSettingInt(ALERT_SLIDER_ISLAND_STYLE, ISLAND_STYLE_STANDARD)
         topPosition = getSettingInt(ALERT_SLIDER_TOP_KEY, 0)
         middlePosition = getSettingInt(ALERT_SLIDER_MIDDLE_KEY, 1)
         bottomPosition = getSettingInt(ALERT_SLIDER_BOTTOM_KEY, 2)
@@ -386,6 +391,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
                 putExtra("mode", mode)
                 putExtra("invertColors", invertColors)
                 putExtra(DIALOG_LOCATION, dialogLocation)
+                putExtra(ALERT_SLIDER_ISLAND_STYLE, islandStyle)
             }
         )
     }
@@ -406,6 +412,10 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
         const val DIALOG_LOCATION = "config_dialog_location"
         const val DIALOG_LOCATION_SIDE = 0
         const val DIALOG_LOCATION_ISLAND = 1
+
+        const val ALERT_SLIDER_ISLAND_STYLE = "alert_slider_island_style"
+        const val ISLAND_STYLE_STANDARD = 0
+        const val ISLAND_STYLE_MINIMAL = 1
 
         const val ALERT_SLIDER_TOP_KEY = "config_top_position"
         const val ALERT_SLIDER_MIDDLE_KEY = "config_middle_position"

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SPDX-FileCopyrightText: 2026 The LineageOS Project
+    SPDX-License-Identifier: Apache-2.0
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <!-- Top-left alarm bell chime wave arc -->
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M 4.5, 7.5 C 5.5, 5.2 7.5, 4.2 9.5, 4.2" />
+    <!-- Top-right alarm bell chime wave arc -->
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M 10.5, 4.2 C 12.5, 4.2 14.5, 5.2 15.5, 7.5" />
+    <!-- Alarm clock outline body -->
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="1.5"
+        android:pathData="M 10, 6.2 A 5.5, 5.5 0 1, 0 10, 17.2 A 5.5, 5.5 0 1, 0 10, 6.2" />
+    <!-- Clock hands pointing at scheduled alarm time -->
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M 10, 11.7 L 10, 8.8" />
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M 10, 11.7 L 12.6, 11.7" />
+</vector>
