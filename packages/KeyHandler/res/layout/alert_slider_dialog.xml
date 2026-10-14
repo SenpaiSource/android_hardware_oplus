@@ -43,7 +43,7 @@
             android:id="@+id/alert_slider_text"
             android:layout_width="fill_parent"
             android:layout_height="fill_parent"
-            android:fontFamily="@*android:string/config_headlineFontFamilyMedium"
+            android:fontFamily="google-sans-medium"
             android:gravity="center_vertical"
             android:textColor="@color/alert_slider_text_color"
             android:autoSizeTextType="uniform"
