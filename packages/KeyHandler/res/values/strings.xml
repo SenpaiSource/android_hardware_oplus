@@ -30,4 +30,8 @@
     <string name="alert_slider_dialog_location_summary">Choose where the alert slider dialog appears</string>
     <string name="alert_slider_dialog_location_side">Side</string>
     <string name="alert_slider_dialog_location_island">Dynamic Island</string>
+    <string name="alert_slider_island_style_title">Island style</string>
+    <string name="alert_slider_island_style_summary">Choose style for Dynamic Island alert slider dialog</string>
+    <string name="alert_slider_island_style_standard">Standard</string>
+    <string name="alert_slider_island_style_minimal">Minimal symmetrical (No text)</string>
 </resources>
