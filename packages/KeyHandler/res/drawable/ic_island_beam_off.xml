@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SPDX-FileCopyrightText: 2026 The LineageOS Project
+    SPDX-License-Identifier: Apache-2.0
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <!-- Dim extinguished hollow ring -->
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="1.6"
+        android:pathData="M 10, 4.8 A 5.2, 5.2 0 1, 0 10, 15.2 A 5.2, 5.2 0 1, 0 10, 4.8" />
+    <!-- Center idle core dot -->
+    <path
+        android:fillColor="@color/alert_slider_icon_color"
+        android:pathData="M 10, 8.8 A 1.2, 1.2 0 1, 0 10, 11.2 A 1.2, 1.2 0 1, 0 10, 8.8" />
+</vector>
