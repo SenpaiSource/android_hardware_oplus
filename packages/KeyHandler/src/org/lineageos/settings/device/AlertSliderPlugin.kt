@@ -13,6 +13,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.display.AmbientDisplayConfiguration
 import android.hardware.display.DisplayManager
+import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
@@ -143,6 +144,15 @@ class AlertSliderPlugin : OverlayPlugin {
                             }
                         }
                     }
+                    VOLUME_CHANGED_ACTION -> {
+                        val stream = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, -1)
+                        if (stream == AudioManager.STREAM_MUSIC ||
+                            stream == AudioManager.STREAM_RING ||
+                            stream == AudioManager.STREAM_NOTIFICATION
+                        ) {
+                            handler.obtainMessage(MSG_VOLUME_CHANGED, stream, 0).sendToTarget()
+                        }
+                    }
                 }
             }
         }
@@ -156,6 +166,7 @@ class AlertSliderPlugin : OverlayPlugin {
             IntentFilter().apply {
                 addAction(Intent.ACTION_CONFIGURATION_CHANGED)
                 addAction(KeyHandler.CHANGED_ACTION)
+                addAction(VOLUME_CHANGED_ACTION)
             }
         plugin.registerReceiver(updateReceiver, filter, Context.RECEIVER_EXPORTED)
     }
@@ -229,6 +240,7 @@ class AlertSliderPlugin : OverlayPlugin {
                 MSG_DIALOG_UPDATE -> handleUpdate(msg.obj as NotificationInfo)
                 MSG_DIALOG_RECREATE -> handleRecreate()
                 MSG_SETTINGS_CHANGED -> handleSettingsChanged(msg.obj as? Intent)
+                MSG_VOLUME_CHANGED -> handleVolumeChanged(msg.arg1)
                 else -> {}
             }
 
@@ -250,6 +262,15 @@ class AlertSliderPlugin : OverlayPlugin {
             }
         }
 
+        private fun handleVolumeChanged(stream: Int) {
+            synchronized(dialogLock) {
+                val updated = islandDialog.onVolumeChanged(stream)
+                if (showing && updated) {
+                    handleResetTimeout()
+                }
+            }
+        }
+
         private fun handleSettingsChanged(intent: Intent?) {
             synchronized(dialogLock) {
                 val newLocation = if (intent?.hasExtra(KeyHandler.DIALOG_LOCATION) == true) {
@@ -263,6 +284,8 @@ class AlertSliderPlugin : OverlayPlugin {
                 } else {
                     getInvertColors()
                 }
+
+                val styleChanged = intent?.hasExtra(KeyHandler.ALERT_SLIDER_ISLAND_STYLE) == true
 
                 lastInfo?.let {
                     if (it.dialogLocation != newLocation || it.invertColors != newInvert) {
@@ -279,6 +302,8 @@ class AlertSliderPlugin : OverlayPlugin {
                                 if (!sideDialog.isShowing) sideDialog.show()
                             }
                         }
+                    } else if (styleChanged && newLocation == KeyHandler.DIALOG_LOCATION_ISLAND && showing) {
+                        islandDialog.setState(it.position, it.mode, newInvert)
                     }
                 }
             }
@@ -394,6 +419,8 @@ class AlertSliderPlugin : OverlayPlugin {
 
         // Intent
         private const val DOZE_INTENT = "com.android.systemui.doze.pulse"
+        private const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
+        private const val EXTRA_VOLUME_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE"
 
         // Handler
         private const val MSG_DIALOG_SHOW = 1
@@ -402,6 +429,7 @@ class AlertSliderPlugin : OverlayPlugin {
         private const val MSG_DIALOG_UPDATE = 4
         private const val MSG_DIALOG_RECREATE = 5
         private const val MSG_SETTINGS_CHANGED = 6
+        private const val MSG_VOLUME_CHANGED = 7
         private const val DIALOG_TIMEOUT = 1500L
 
         // Dialog
