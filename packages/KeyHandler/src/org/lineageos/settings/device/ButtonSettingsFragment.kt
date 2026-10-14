@@ -42,11 +42,14 @@ class ButtonSettingsFragment :
             KeyHandler.ALERT_SLIDER_TOP_KEY,
             KeyHandler.ALERT_SLIDER_MIDDLE_KEY,
             KeyHandler.ALERT_SLIDER_BOTTOM_KEY,
+            KeyHandler.ALERT_SLIDER_ISLAND_STYLE,
         )
 
         for (key in keys) {
             findPreference<Preference>(key)?.onPreferenceChangeListener = this
         }
+
+        updateIslandStyleVisibility(locationPref?.value)
 
         // Initial broadcast to push all current settings to KeyHandler and SystemUI
         broadcastAllSettings(context)
@@ -59,11 +62,19 @@ class ButtonSettingsFragment :
 
     override fun onPreferenceChange(preference: Preference, newValue: Any): Boolean {
         val context = requireContext()
+        if (preference.key == KeyHandler.DIALOG_LOCATION) {
+            updateIslandStyleVisibility(newValue.toString())
+        }
         // Save the updated setting immediately across storage backends
         savePreferenceValue(context, preference.key, newValue)
         // Broadcast all settings with the new value applied
         broadcastSettings(context, preference.key, newValue)
         return true
+    }
+
+    private fun updateIslandStyleVisibility(locationValue: String?) {
+        val isIsland = locationValue == KeyHandler.DIALOG_LOCATION_ISLAND.toString()
+        findPreference<ListPreference>(KeyHandler.ALERT_SLIDER_ISLAND_STYLE)?.isVisible = isIsland
     }
 
     private fun savePreferenceValue(context: Context, key: String, newValue: Any) {
@@ -74,9 +85,14 @@ class ButtonSettingsFragment :
             else -> 0
         }
 
-        // 1. Settings.Secure (Works across AOSP, VoltageOS, and Lunaris without restrictions)
+        // 1. Settings.Secure & Settings.System (Works across AOSP, VoltageOS, and Lunaris without restrictions)
         try {
             Settings.Secure.putInt(context.contentResolver, key, intVal)
+        } catch (e: Throwable) {
+            // Ignore if restricted
+        }
+        try {
+            Settings.System.putInt(context.contentResolver, key, intVal)
         } catch (e: Throwable) {
             // Ignore if restricted
         }
@@ -185,6 +201,7 @@ class ButtonSettingsFragment :
         val topPos = getInt(KeyHandler.ALERT_SLIDER_TOP_KEY, 0)
         val midPos = getInt(KeyHandler.ALERT_SLIDER_MIDDLE_KEY, 1)
         val botPos = getInt(KeyHandler.ALERT_SLIDER_BOTTOM_KEY, 2)
+        val islandStyle = getInt(KeyHandler.ALERT_SLIDER_ISLAND_STYLE, KeyHandler.ISLAND_STYLE_STANDARD)
 
         val intent =
             Intent(KeyHandler.CHANGED_ACTION).apply {
@@ -196,6 +213,7 @@ class ButtonSettingsFragment :
                 putExtra(KeyHandler.ALERT_SLIDER_TOP_KEY, topPos)
                 putExtra(KeyHandler.ALERT_SLIDER_MIDDLE_KEY, midPos)
                 putExtra(KeyHandler.ALERT_SLIDER_BOTTOM_KEY, botPos)
+                putExtra(KeyHandler.ALERT_SLIDER_ISLAND_STYLE, islandStyle)
             }
         context.sendBroadcast(intent)
     }
@@ -223,6 +241,7 @@ class ButtonSettingsFragment :
             KeyHandler.ALERT_SLIDER_TOP_KEY,
             KeyHandler.ALERT_SLIDER_MIDDLE_KEY,
             KeyHandler.ALERT_SLIDER_BOTTOM_KEY,
+            KeyHandler.ALERT_SLIDER_ISLAND_STYLE,
         )
 
         for (ctx in contexts) {

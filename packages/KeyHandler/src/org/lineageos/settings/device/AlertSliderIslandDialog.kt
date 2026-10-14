@@ -5,6 +5,7 @@
 
 package org.lineageos.settings.device
 
+import android.animation.Animator
 import android.animation.ObjectAnimator
 import android.app.Dialog
 import android.app.StatusBarManager
@@ -26,6 +27,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.VelocityTracker
+import android.view.View
 import android.view.ViewConfiguration
 import android.view.Window
 import android.view.WindowInsets
@@ -39,6 +41,8 @@ import android.widget.LinearLayout
 import android.widget.Space
 import android.widget.TextView
 
+import androidx.preference.PreferenceManager
+
 class AlertSliderIslandDialog(
     private val context: Context,
     private val sysuiContext: Context,
@@ -49,7 +53,10 @@ class AlertSliderIslandDialog(
     private val iconContainer by lazy { findViewById<FrameLayout>(R.id.alert_slider_island_icon_container)!! }
     private val iconView by lazy { findViewById<ImageView>(R.id.alert_slider_island_icon)!! }
     private val gapView by lazy { findViewById<Space>(R.id.alert_slider_island_cutout_gap)!! }
+    private val rightContainer by lazy { findViewById<FrameLayout>(R.id.alert_slider_island_right_container)!! }
     private val textView by lazy { findViewById<TextView>(R.id.alert_slider_island_text)!! }
+    private val volumeTextView by lazy { findViewById<TextView>(R.id.alert_slider_island_volume_text)!! }
+    private val rightGraphicView by lazy { findViewById<ImageView>(R.id.alert_slider_island_right_graphic)!! }
 
     private val statusBarManager by lazy {
         sysuiContext.getSystemService(StatusBarManager::class.java)
@@ -61,6 +68,12 @@ class AlertSliderIslandDialog(
     private val powerManager by lazy {
         context.getSystemService(PowerManager::class.java)
     }
+
+    private val audioManager: AudioManager?
+        get() = sysuiContext.getSystemService(AudioManager::class.java)
+            ?: context.getSystemService(AudioManager::class.java)
+
+    private var currentVolumeStream = AudioManager.STREAM_MUSIC
 
     private var activeShakeAnim: ObjectAnimator? = null
     // True during the 170 ms dismiss exit-animation so show() can cancel it instead of bailing.
@@ -77,6 +90,78 @@ class AlertSliderIslandDialog(
     private var touchStartY = 0f
     private var isHorizontalSwipe = false
     private var velocityTracker: VelocityTracker? = null
+
+    private fun isMinimalStyle(): Boolean {
+        try {
+            val v = Settings.System.getInt(context.contentResolver, KeyHandler.ALERT_SLIDER_ISLAND_STYLE, -999)
+            if (v != -999) return v == KeyHandler.ISLAND_STYLE_MINIMAL
+        } catch (e: Throwable) {
+            // Ignore
+        }
+        try {
+            val v = Settings.Secure.getInt(context.contentResolver, KeyHandler.ALERT_SLIDER_ISLAND_STYLE, -999)
+            if (v != -999) return v == KeyHandler.ISLAND_STYLE_MINIMAL
+        } catch (e: Throwable) {
+            // Ignore
+        }
+        try {
+            val v = Settings.System.getInt(sysuiContext.contentResolver, KeyHandler.ALERT_SLIDER_ISLAND_STYLE, -999)
+            if (v != -999) return v == KeyHandler.ISLAND_STYLE_MINIMAL
+        } catch (e: Throwable) {
+            // Ignore
+        }
+        try {
+            val v = Settings.Secure.getInt(sysuiContext.contentResolver, KeyHandler.ALERT_SLIDER_ISLAND_STYLE, -999)
+            if (v != -999) return v == KeyHandler.ISLAND_STYLE_MINIMAL
+        } catch (e: Throwable) {
+            // Ignore
+        }
+        try {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            val v = prefs.getString(KeyHandler.ALERT_SLIDER_ISLAND_STYLE, null)?.toIntOrNull()
+                ?: prefs.getInt(KeyHandler.ALERT_SLIDER_ISLAND_STYLE, -999)
+            if (v != -999) return v == KeyHandler.ISLAND_STYLE_MINIMAL
+        } catch (e: Throwable) {
+            // Ignore
+        }
+        return false
+    }
+
+    private fun getVolumePercent(streamType: Int = currentVolumeStream): Int {
+        return try {
+            val am = audioManager ?: return 100
+            val stream = when (streamType) {
+                AudioManager.STREAM_RING,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.STREAM_NOTIFICATION -> streamType
+                else -> AudioManager.STREAM_MUSIC
+            }
+            val current = am.getStreamVolume(stream)
+            val max = am.getStreamMaxVolume(stream)
+            val min = try { am.getStreamMinVolume(stream) } catch (e: Throwable) { 0 }
+            if (max > min) {
+                val percent = Math.round((current - min).toFloat() / (max - min).toFloat() * 100f).toInt()
+                percent.coerceIn(0, 100)
+            } else {
+                100
+            }
+        } catch (e: Throwable) {
+            100
+        }
+    }
+
+    private fun getRightViewForMode(mode: Int): View {
+        return if (!isMinimalStyle()) {
+            textView
+        } else if (mode == AudioManager.RINGER_MODE_NORMAL) {
+            volumeTextView
+        } else {
+            rightGraphicView
+        }
+    }
+
+    private val rightActiveView: View
+        get() = getRightViewForMode(currentRingerMode)
 
     private fun isInteractive(): Boolean {
         return try {
@@ -153,12 +238,11 @@ class AlertSliderIslandDialog(
 
                     val contentAlpha = (1f - dragFraction * 0.6f).coerceIn(0f, 1f)
                     val contentScale = (1f - dragFraction * 0.35f).coerceIn(0.65f, 1f)
-                    iconView.alpha = contentAlpha
-                    textView.alpha = contentAlpha
-                    iconView.scaleX = contentScale
-                    iconView.scaleY = contentScale
-                    textView.scaleX = contentScale
-                    textView.scaleY = contentScale
+                    listOf(iconView, textView, volumeTextView, rightGraphicView).forEach { v ->
+                        v.alpha = contentAlpha
+                        v.scaleX = contentScale
+                        v.scaleY = contentScale
+                    }
                     return true
                 }
             }
@@ -207,19 +291,17 @@ class AlertSliderIslandDialog(
             .setInterpolator(OvershootInterpolator(1.1f))
             .start()
 
-        iconView.animate()
-            .scaleX(1f)
-            .scaleY(1f)
-            .alpha(1f)
-            .setDuration(160)
-            .start()
-
-        textView.animate()
-            .scaleX(1f)
-            .scaleY(1f)
-            .alpha(1f)
-            .setDuration(160)
-            .start()
+        listOf(iconView, textView, volumeTextView, rightGraphicView).forEach { v ->
+            v.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .alpha(1f)
+                .rotation(0f)
+                .translationX(0f)
+                .translationY(0f)
+                .setDuration(160)
+                .start()
+        }
 
         dialogView.animate()
             .translationX(0f)
@@ -238,21 +320,15 @@ class AlertSliderIslandDialog(
         applyCutoutPivot()
         setSystemInfoDisabled(false)
 
-        iconView.animate()
-            .alpha(0f)
-            .scaleX(0.5f)
-            .scaleY(0.5f)
-            .setDuration(110)
-            .setInterpolator(AccelerateInterpolator())
-            .start()
-
-        textView.animate()
-            .alpha(0f)
-            .scaleX(0.5f)
-            .scaleY(0.5f)
-            .setDuration(110)
-            .setInterpolator(AccelerateInterpolator())
-            .start()
+        listOf(iconView, textView, volumeTextView, rightGraphicView).forEach { v ->
+            v.animate()
+                .alpha(0f)
+                .scaleX(0.5f)
+                .scaleY(0.5f)
+                .setDuration(110)
+                .setInterpolator(AccelerateInterpolator())
+                .start()
+        }
 
         dialogView.animate()
             .translationX(0f)
@@ -407,6 +483,45 @@ class AlertSliderIslandDialog(
         return Pair(widthScale, heightScale)
     }
 
+    private fun applyWingDimensions(isMinimal: Boolean, ringerMode: Int, widthScale: Float): Int {
+        val iconSize = context.resources.getDimensionPixelSize(R.dimen.alert_slider_island_icon_size)
+        val wingWidth = if (hasCenteredCutout()) {
+            if (isMinimal) {
+                if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
+                    val volString = volumeTextView.text?.toString() ?: ""
+                    val volWidth = if (volString.isNotEmpty()) {
+                        Math.ceil(volumeTextView.paint.measureText(volString).toDouble()).toInt()
+                    } else 0
+                    maxOf(iconSize, volWidth)
+                } else {
+                    iconSize
+                }
+            } else {
+                val maxTextWidth = (context.resources.getDimensionPixelSize(R.dimen.alert_slider_island_text_max_width) * widthScale).toInt()
+                val textString = textView.text?.toString() ?: ""
+                val textWidth = if (textString.isNotEmpty()) minOf(Math.ceil(textView.paint.measureText(textString).toDouble()).toInt(), maxTextWidth) else 0
+                maxOf(iconSize, textWidth)
+            }
+        } else {
+            iconSize
+        }
+
+        if (hasCenteredCutout()) {
+            iconContainer.minimumWidth = wingWidth
+            rightContainer.minimumWidth = wingWidth
+            textView.minWidth = if (!isMinimal) wingWidth else 0
+            volumeTextView.minWidth = if (isMinimal && ringerMode == AudioManager.RINGER_MODE_NORMAL) wingWidth else 0
+            rightGraphicView.minimumWidth = if (isMinimal && ringerMode != AudioManager.RINGER_MODE_NORMAL) wingWidth else 0
+        } else {
+            iconContainer.minimumWidth = 0
+            rightContainer.minimumWidth = 0
+            textView.minWidth = 0
+            volumeTextView.minWidth = 0
+            rightGraphicView.minimumWidth = 0
+        }
+        return wingWidth
+    }
+
     @Suppress("DEPRECATION")
     private fun updateLayout() {
         val display = getSafeDisplay()
@@ -458,23 +573,8 @@ class AlertSliderIslandDialog(
         val screenWidth = if (realSize.x > 0) realSize.x else context.resources.displayMetrics.widthPixels
 
         // Horizontal offset to center the cutout gap directly on the punch hole (Singularity spec)
-        val iconSize = context.resources.getDimensionPixelSize(R.dimen.alert_slider_island_icon_size)
-        val wingWidth = if (hasCenteredCutout()) {
-            val maxTextWidth = (context.resources.getDimensionPixelSize(R.dimen.alert_slider_island_text_max_width) * widthScale).toInt()
-            val textString = textView.text?.toString() ?: ""
-            val textWidth = if (textString.isNotEmpty()) minOf(Math.ceil(textView.paint.measureText(textString).toDouble()).toInt(), maxTextWidth) else 0
-            maxOf(iconSize, textWidth)
-        } else {
-            iconSize
-        }
-
-        if (hasCenteredCutout()) {
-            iconContainer.minimumWidth = wingWidth
-            textView.minWidth = wingWidth
-        } else {
-            iconContainer.minimumWidth = 0
-            textView.minWidth = 0
-        }
+        val isMinimal = isMinimalStyle()
+        val wingWidth = applyWingDimensions(isMinimal, currentRingerMode, widthScale)
 
         val xPos = if (isCenter && topCutout != null) {
             (topCutout.exactCenterX() - (screenWidth / 2f)).toInt()
@@ -526,25 +626,60 @@ class AlertSliderIslandDialog(
     }
 
     fun setState(position: Int, ringerMode: Int, invertColors: Boolean) {
+        val previousMode = currentRingerMode
         currentRingerMode = ringerMode
         if (isShowing) {
-            animateStateChange(ringerMode, invertColors)
+            animateStateChange(ringerMode, invertColors, previousMode)
         } else {
             applyUiMode(ringerMode, invertColors)
             updateLayout()
         }
     }
 
-    private fun animateStateChange(ringerMode: Int, invertColors: Boolean) {
+    fun onVolumeChanged(stream: Int): Boolean {
+        if (stream == AudioManager.STREAM_MUSIC ||
+            stream == AudioManager.STREAM_RING ||
+            stream == AudioManager.STREAM_NOTIFICATION
+        ) {
+            currentVolumeStream = stream
+        }
+        if (isShowing && !isDismissing && currentRingerMode == AudioManager.RINGER_MODE_NORMAL && isMinimalStyle()) {
+            val vol = getVolumePercent(currentVolumeStream)
+            volumeTextView.text = "$vol%"
+            val (widthScale, _) = getIslandScale()
+            applyWingDimensions(true, currentRingerMode, widthScale)
+            updateLayout()
+
+            volumeTextView.animate().cancel()
+            volumeTextView.scaleX = 1.15f
+            volumeTextView.scaleY = 1.15f
+            volumeTextView.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(160)
+                .setInterpolator(OvershootInterpolator(1.2f))
+                .start()
+            return true
+        }
+        return false
+    }
+
+    private fun animateStateChange(
+        ringerMode: Int,
+        invertColors: Boolean,
+        prevRingerMode: Int = currentRingerMode,
+    ) {
         val density = context.resources.displayMetrics.density
         val slideOffset = 6f * density
 
         activeShakeAnim?.cancel()
         activeShakeAnim = null
-        iconView.animate().cancel()
-        textView.animate().cancel()
-        frameView.animate().cancel()
-        dialogView.animate().cancel()
+        activeMicroAnim?.cancel()
+        activeMicroAnim = null
+
+        listOf(iconView, textView, volumeTextView, rightGraphicView, frameView, dialogView).forEach {
+            it.animate().cancel()
+        }
 
         isDismissing = false
         dialogView.alpha = 1f
@@ -555,18 +690,16 @@ class AlertSliderIslandDialog(
         isHorizontalSwipe = false
         setSystemInfoDisabled(true)
 
-        iconView.alpha = 1f
-        iconView.scaleX = 1f
-        iconView.scaleY = 1f
-        iconView.translationX = 0f
-        iconView.translationY = 0f
+        listOf(iconView, textView, volumeTextView, rightGraphicView).forEach { v ->
+            v.alpha = 1f
+            v.scaleX = 1f
+            v.scaleY = 1f
+            v.rotation = 0f
+            v.translationX = 0f
+            v.translationY = 0f
+        }
 
-        textView.alpha = 1f
-        textView.scaleX = 1f
-        textView.scaleY = 1f
-        textView.translationX = 0f
-        textView.translationY = 0f
-
+        frameView.alpha = 1f
         frameView.scaleX = 1f
         frameView.scaleY = 1f
         frameView.translationX = 0f
@@ -578,11 +711,13 @@ class AlertSliderIslandDialog(
             .setDuration(70)
             .setInterpolator(DecelerateInterpolator())
             .withEndAction {
-                frameView.animate()
-                    .scaleX(1.0f)
-                    .setDuration(130)
-                    .setInterpolator(OvershootInterpolator(1.2f))
-                    .start()
+                if (!isDismissing && isShowing) {
+                    frameView.animate()
+                        .scaleX(1.0f)
+                        .setDuration(130)
+                        .setInterpolator(OvershootInterpolator(1.2f))
+                        .start()
+                }
             }
             .start()
 
@@ -594,13 +729,27 @@ class AlertSliderIslandDialog(
             .setInterpolator(AccelerateInterpolator())
             .start()
 
-        // Text smooth crossfade and slide
-        textView.animate()
+        // Active right content smooth crossfade and slide
+        val oldRight = listOf(textView, volumeTextView, rightGraphicView).firstOrNull { it.visibility == View.VISIBLE }
+            ?: getRightViewForMode(prevRingerMode)
+        val newRight = getRightViewForMode(ringerMode)
+
+        listOf(textView, volumeTextView, rightGraphicView).forEach { v ->
+            if (v != oldRight) {
+                v.visibility = View.GONE
+            }
+        }
+        oldRight.visibility = View.VISIBLE
+        oldRight.alpha = 1f
+        oldRight.translationY = 0f
+
+        oldRight.animate()
             .translationY(-slideOffset)
             .alpha(0f)
             .setDuration(65)
             .setInterpolator(AccelerateInterpolator())
             .withEndAction {
+                if (isDismissing || !isShowing) return@withEndAction
                 applyUiMode(ringerMode, invertColors)
                 updateLayout()
 
@@ -617,8 +766,10 @@ class AlertSliderIslandDialog(
                     }
                     .start()
 
-                textView.translationY = slideOffset
-                textView.animate()
+                val activeRight = rightActiveView
+                activeRight.translationY = slideOffset
+                activeRight.alpha = 0f
+                activeRight.animate()
                     .translationY(0f)
                     .alpha(1f)
                     .setDuration(120)
@@ -629,6 +780,7 @@ class AlertSliderIslandDialog(
     }
 
     private fun playVibrateShakeAnimation() {
+        if (isDismissing || !isShowing) return
         val px = 2.5f * context.resources.displayMetrics.density
         activeShakeAnim?.cancel()
         activeShakeAnim = ObjectAnimator.ofFloat(
@@ -702,21 +854,44 @@ class AlertSliderIslandDialog(
 
         val textString = context.getString(textRes)
         iconView.setImageResource(iconRes)
-        textView.text = textString
-        textView.isSelected = true
 
-        if (hasCenteredCutout()) {
-            val (widthScale, _) = getIslandScale()
-            val textWidth = Math.ceil(textView.paint.measureText(textString).toDouble()).toInt()
-            val maxTextWidth = (context.resources.getDimensionPixelSize(R.dimen.alert_slider_island_text_max_width) * widthScale).toInt()
-            val iconSize = context.resources.getDimensionPixelSize(R.dimen.alert_slider_island_icon_size)
-            val wingWidth = maxOf(iconSize, minOf(textWidth, maxTextWidth))
-            iconContainer.minimumWidth = wingWidth
-            textView.minWidth = wingWidth
+        val isMinimal = isMinimalStyle()
+        if (isMinimal) {
+            textView.visibility = View.GONE
+            if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
+                val vol = getVolumePercent(currentVolumeStream)
+                volumeTextView.text = "$vol%"
+                volumeTextView.visibility = View.VISIBLE
+                rightGraphicView.visibility = View.GONE
+            } else {
+                volumeTextView.visibility = View.GONE
+                val rightGraphicRes = when (ringerMode) {
+                    AudioManager.RINGER_MODE_VIBRATE -> R.drawable.ic_island_wave
+                    AudioManager.RINGER_MODE_SILENT -> R.drawable.ic_island_silent_bar
+                    KeyHandler.ZEN_PRIORITY_ONLY -> R.drawable.ic_island_dnd_priority
+                    KeyHandler.ZEN_TOTAL_SILENCE -> R.drawable.ic_island_dnd_total
+                    KeyHandler.ZEN_ALARMS_ONLY -> R.drawable.ic_island_dnd_alarms
+                    KeyHandler.TORCH_ON -> R.drawable.ic_island_beam_array
+                    KeyHandler.TORCH_OFF -> R.drawable.ic_island_beam_off
+                    else -> 0
+                }
+                if (rightGraphicRes != 0) {
+                    rightGraphicView.setImageResource(rightGraphicRes)
+                    rightGraphicView.visibility = View.VISIBLE
+                } else {
+                    rightGraphicView.visibility = View.GONE
+                }
+            }
         } else {
-            iconContainer.minimumWidth = 0
-            textView.minWidth = 0
+            textView.text = textString
+            textView.isSelected = true
+            textView.visibility = View.VISIBLE
+            volumeTextView.visibility = View.GONE
+            rightGraphicView.visibility = View.GONE
         }
+
+        val (widthScale, _) = getIslandScale()
+        applyWingDimensions(isMinimal, ringerMode, widthScale)
 
         val bgDrawable = frameView.background?.mutate() as? GradientDrawable
         val strokeWidth = (1 * context.resources.displayMetrics.density).toInt()
@@ -757,6 +932,8 @@ class AlertSliderIslandDialog(
 
             iconView.imageTintList = ColorStateList.valueOf(activeFg)
             textView.setTextColor(activeFg)
+            volumeTextView.setTextColor(activeFg)
+            rightGraphicView.imageTintList = ColorStateList.valueOf(activeFg)
         } else {
             // Native Luna Dynamic Island mode (Solid black capsule + Luna style vibrant accents)
             val pillBg = Color.BLACK
@@ -774,6 +951,8 @@ class AlertSliderIslandDialog(
 
             iconView.imageTintList = ColorStateList.valueOf(lunaAccentColor)
             textView.setTextColor(Color.WHITE)
+            volumeTextView.setTextColor(Color.WHITE)
+            rightGraphicView.imageTintList = ColorStateList.valueOf(lunaAccentColor)
         }
     }
 
@@ -781,8 +960,6 @@ class AlertSliderIslandDialog(
         dialogView.animate().cancel()
         activeShakeAnim?.cancel()
         activeShakeAnim = null
-        iconView.animate().cancel()
-        textView.animate().cancel()
         frameView.animate().cancel()
 
         dialogView.alpha = 1f
@@ -797,22 +974,26 @@ class AlertSliderIslandDialog(
         frameView.translationX = 0f
         frameView.translationY = 0f
 
-        iconView.alpha = 1f
-        iconView.scaleX = 1f
-        iconView.scaleY = 1f
-        iconView.translationX = 0f
-        iconView.translationY = 0f
-
-        textView.alpha = 1f
-        textView.scaleX = 1f
-        textView.scaleY = 1f
-        textView.translationX = 0f
-        textView.translationY = 0f
+        listOf(iconView, textView, volumeTextView, rightGraphicView).forEach { v ->
+            v.animate().cancel()
+            v.alpha = 1f
+            v.scaleX = 1f
+            v.scaleY = 1f
+            v.rotation = 0f
+            v.translationX = 0f
+            v.translationY = 0f
+        }
         isHorizontalSwipe = false
     }
 
     override fun show() {
         setSystemInfoDisabled(true)
+        if (isMinimalStyle() && currentRingerMode == AudioManager.RINGER_MODE_NORMAL) {
+            val vol = getVolumePercent(currentVolumeStream)
+            volumeTextView.text = "$vol%"
+            val (widthScale, _) = getIslandScale()
+            applyWingDimensions(true, currentRingerMode, widthScale)
+        }
         updateLayout()
         applyCutoutPivot()
         textView.isSelected = true
@@ -829,12 +1010,12 @@ class AlertSliderIslandDialog(
             frameView.alpha = 0f
             frameView.scaleX = startScaleX
             frameView.scaleY = startScaleY
-            iconView.alpha = 0f
-            iconView.scaleX = 0.7f
-            iconView.scaleY = 0.7f
-            textView.alpha = 0f
-            textView.scaleX = 0.7f
-            textView.scaleY = 0.7f
+
+            listOf(iconView, textView, volumeTextView, rightGraphicView).forEach { v ->
+                v.alpha = 0f
+                v.scaleX = 0.7f
+                v.scaleY = 0.7f
+            }
 
             frameView
                 .animate()
@@ -859,7 +1040,8 @@ class AlertSliderIslandDialog(
                 }
                 .start()
 
-            textView
+            val rightView = rightActiveView
+            rightView
                 .animate()
                 .alpha(1f)
                 .scaleX(1f)
@@ -878,12 +1060,12 @@ class AlertSliderIslandDialog(
         frameView.alpha = 0f
         frameView.scaleX = startScaleX
         frameView.scaleY = startScaleY
-        iconView.alpha = 0f
-        iconView.scaleX = 0.7f
-        iconView.scaleY = 0.7f
-        textView.alpha = 0f
-        textView.scaleX = 0.7f
-        textView.scaleY = 0.7f
+
+        listOf(iconView, textView, volumeTextView, rightGraphicView).forEach { v ->
+            v.alpha = 0f
+            v.scaleX = 0.7f
+            v.scaleY = 0.7f
+        }
 
         try {
             super.show()
@@ -915,7 +1097,8 @@ class AlertSliderIslandDialog(
             }
             .start()
 
-        textView
+        val rightView = rightActiveView
+        rightView
             .animate()
             .alpha(1f)
             .scaleX(1f)
@@ -949,23 +1132,15 @@ class AlertSliderIslandDialog(
         applyCutoutPivot()
         setSystemInfoDisabled(false)
 
-        iconView
-            .animate()
-            .alpha(0f)
-            .scaleX(0.6f)
-            .scaleY(0.6f)
-            .setDuration(110)
-            .setInterpolator(AccelerateInterpolator())
-            .start()
-
-        textView
-            .animate()
-            .alpha(0f)
-            .scaleX(0.6f)
-            .scaleY(0.6f)
-            .setDuration(110)
-            .setInterpolator(AccelerateInterpolator())
-            .start()
+        listOf(iconView, textView, volumeTextView, rightGraphicView).forEach { v ->
+            v.animate()
+                .alpha(0f)
+                .scaleX(0.6f)
+                .scaleY(0.6f)
+                .setDuration(110)
+                .setInterpolator(AccelerateInterpolator())
+                .start()
+        }
 
         frameView
             .animate()
@@ -988,11 +1163,15 @@ class AlertSliderIslandDialog(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        activeShakeAnim?.cancel()
+        activeShakeAnim = null
         setSystemInfoDisabled(false)
     }
 
     override fun onStop() {
         super.onStop()
+        activeShakeAnim?.cancel()
+        activeShakeAnim = null
         setSystemInfoDisabled(false)
     }
 
