@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SPDX-FileCopyrightText: 2026 The LineageOS Project
+    SPDX-License-Identifier: Apache-2.0
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <!-- Distinct emitter lens / base arc -->
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M 4, 7 C 5.5, 8.5 5.5, 11.5 4, 13" />
+    <!-- Center primary beam -->
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:pathData="M 6.5, 10 L 16.5, 10" />
+    <!-- Upper angled light ray -->
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="2.0"
+        android:strokeLineCap="round"
+        android:pathData="M 6.8, 7.5 L 14.8, 4" />
+    <!-- Lower angled light ray -->
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="2.0"
+        android:strokeLineCap="round"
+        android:pathData="M 6.8, 12.5 L 14.8, 16" />
+</vector>
