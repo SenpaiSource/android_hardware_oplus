@@ -86,6 +86,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
 
     init {
         refreshSettings()
+        populateKeyState(true)
         context.registerReceiver(
             broadcastReceiver,
             IntentFilter().apply {
@@ -118,11 +119,16 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
         try {
             val file = File("/proc/tristatekey/tri_state")
             if (file.exists()) {
-                when (file.readText().trim()) {
-                    "1" -> handleMode(POSITION_TOP, firstRun)
-                    "2" -> handleMode(POSITION_MIDDLE, firstRun)
-                    "3" -> handleMode(POSITION_BOTTOM, firstRun)
+                val newPosition = when (file.readText().trim()) {
+                    "1" -> POSITION_TOP
+                    "2" -> POSITION_MIDDLE
+                    "3" -> POSITION_BOTTOM
+                    else -> return
                 }
+                if (!firstRun && newPosition == currentPosition) {
+                    return
+                }
+                handleMode(newPosition, firstRun)
             }
         } catch (e: Throwable) {
             // Ignore if sysfs/proc node is inaccessible
