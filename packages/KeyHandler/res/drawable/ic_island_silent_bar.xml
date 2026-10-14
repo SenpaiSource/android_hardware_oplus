@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SPDX-FileCopyrightText: 2026 The LineageOS Project
+    SPDX-License-Identifier: Apache-2.0
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <!-- Sleek zero-decibel rest bar (0 dB acoustic flatline) -->
+    <path
+        android:strokeColor="@color/alert_slider_icon_color"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M 4, 10 L 16, 10" />
+</vector>

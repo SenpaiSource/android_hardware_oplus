@@ -13,6 +13,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.display.AmbientDisplayConfiguration
 import android.hardware.display.DisplayManager
+import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
@@ -26,6 +27,7 @@ import com.android.systemui.plugins.annotations.Requires
 @Requires(target = OverlayPlugin::class, version = OverlayPlugin.VERSION)
 class AlertSliderPlugin : OverlayPlugin {
     private lateinit var ambientConfig: AmbientDisplayConfiguration
+    private lateinit var hostContext: Context
     private lateinit var pluginContext: Context
     private lateinit var handler: NotificationHandler
     private val dialogLock = Any()
@@ -143,12 +145,22 @@ class AlertSliderPlugin : OverlayPlugin {
                             }
                         }
                     }
+                    VOLUME_CHANGED_ACTION -> {
+                        val stream = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, -1)
+                        if (stream == AudioManager.STREAM_MUSIC ||
+                            stream == AudioManager.STREAM_RING ||
+                            stream == AudioManager.STREAM_NOTIFICATION
+                        ) {
+                            handler.obtainMessage(MSG_VOLUME_CHANGED, stream, 0).sendToTarget()
+                        }
+                    }
                 }
             }
         }
 
     override fun onCreate(context: Context, plugin: Context) {
         ambientConfig = AmbientDisplayConfiguration(context)
+        hostContext = context
         pluginContext = plugin
         handler = NotificationHandler(plugin, context)
 
@@ -156,13 +168,14 @@ class AlertSliderPlugin : OverlayPlugin {
             IntentFilter().apply {
                 addAction(Intent.ACTION_CONFIGURATION_CHANGED)
                 addAction(KeyHandler.CHANGED_ACTION)
+                addAction(VOLUME_CHANGED_ACTION)
             }
-        plugin.registerReceiver(updateReceiver, filter, Context.RECEIVER_EXPORTED)
+        context.registerReceiver(updateReceiver, filter, Context.RECEIVER_EXPORTED)
     }
 
     override fun onDestroy() {
         try {
-            pluginContext.unregisterReceiver(updateReceiver)
+            hostContext.unregisterReceiver(updateReceiver)
         } catch (e: Throwable) {
             // Ignore if already unregistered
         }
@@ -175,9 +188,27 @@ class AlertSliderPlugin : OverlayPlugin {
         var context: Context,
         private var sysuiContext: Context,
     ) : Handler(Looper.getMainLooper()) {
-        private var sideDialog = AlertSliderDialog(context, sysuiContext)
-        private var islandDialog = AlertSliderIslandDialog(context, sysuiContext).apply {
-            onDismissRequested = { showing = false }
+        private var sideDialog: AlertSliderDialog? = null
+        private var islandDialog: AlertSliderIslandDialog? = null
+
+        private fun getSideDialog(): AlertSliderDialog {
+            var d = sideDialog
+            if (d == null) {
+                d = AlertSliderDialog(context, sysuiContext)
+                sideDialog = d
+            }
+            return d
+        }
+
+        private fun getIslandDialog(): AlertSliderIslandDialog {
+            var d = islandDialog
+            if (d == null) {
+                d = AlertSliderIslandDialog(context, sysuiContext).apply {
+                    onDismissRequested = { showing = false }
+                }
+                islandDialog = d
+            }
+            return d
         }
 
         private fun getSafeRotation(): Int {
@@ -205,15 +236,15 @@ class AlertSliderPlugin : OverlayPlugin {
                             handleResetTimeout()
                             launchDozePulse()
                             if (lastInfo?.dialogLocation == KeyHandler.DIALOG_LOCATION_ISLAND) {
-                                if (sideDialog.isShowing) sideDialog.dismiss()
-                                islandDialog.show()
+                                sideDialog?.dismiss()
+                                getIslandDialog().show()
                             } else {
-                                if (islandDialog.isShowing) islandDialog.dismiss()
-                                sideDialog.show()
+                                islandDialog?.dismiss()
+                                getSideDialog().show()
                             }
                         } else {
-                            if (sideDialog.isShowing) sideDialog.dismiss()
-                            if (islandDialog.isShowing) islandDialog.dismiss()
+                            sideDialog?.dismiss()
+                            islandDialog?.dismiss()
                         }
                     }
 
@@ -229,6 +260,7 @@ class AlertSliderPlugin : OverlayPlugin {
                 MSG_DIALOG_UPDATE -> handleUpdate(msg.obj as NotificationInfo)
                 MSG_DIALOG_RECREATE -> handleRecreate()
                 MSG_SETTINGS_CHANGED -> handleSettingsChanged(msg.obj as? Intent)
+                MSG_VOLUME_CHANGED -> handleVolumeChanged(msg.arg1)
                 else -> {}
             }
 
@@ -250,6 +282,15 @@ class AlertSliderPlugin : OverlayPlugin {
             }
         }
 
+        private fun handleVolumeChanged(stream: Int) {
+            synchronized(dialogLock) {
+                val updated = islandDialog?.onVolumeChanged(stream) ?: false
+                if (showing && updated) {
+                    handleResetTimeout()
+                }
+            }
+        }
+
         private fun handleSettingsChanged(intent: Intent?) {
             synchronized(dialogLock) {
                 val newLocation = if (intent?.hasExtra(KeyHandler.DIALOG_LOCATION) == true) {
@@ -264,21 +305,23 @@ class AlertSliderPlugin : OverlayPlugin {
                     getInvertColors()
                 }
 
+                val styleChanged = intent?.hasExtra(KeyHandler.ALERT_SLIDER_ISLAND_STYLE) == true
+
                 lastInfo?.let {
                     if (it.dialogLocation != newLocation || it.invertColors != newInvert) {
                         val wasShowing = showing
                         lastInfo = it.copy(dialogLocation = newLocation, invertColors = newInvert)
-                        if (wasShowing) {
-                            if (newLocation == KeyHandler.DIALOG_LOCATION_ISLAND) {
-                                if (sideDialog.isShowing) sideDialog.dismiss()
-                                islandDialog.setState(it.position, it.mode, newInvert)
-                                if (!islandDialog.isShowing) islandDialog.show()
-                            } else {
-                                if (islandDialog.isShowing) islandDialog.dismiss()
-                                sideDialog.setState(it.position, it.mode, newInvert)
-                                if (!sideDialog.isShowing) sideDialog.show()
-                            }
+                        if (newLocation == KeyHandler.DIALOG_LOCATION_ISLAND) {
+                            sideDialog?.dismiss()
+                            getIslandDialog().setState(it.position, it.mode, newInvert)
+                            if (wasShowing) getIslandDialog().show()
+                        } else {
+                            islandDialog?.dismiss()
+                            getSideDialog().setState(it.position, it.mode, newInvert)
+                            if (wasShowing) getSideDialog().show()
                         }
+                    } else if (styleChanged && newLocation == KeyHandler.DIALOG_LOCATION_ISLAND && showing) {
+                        getIslandDialog().setState(it.position, it.mode, newInvert)
                     }
                 }
             }
@@ -286,13 +329,7 @@ class AlertSliderPlugin : OverlayPlugin {
 
         private fun handleUpdate(info: NotificationInfo) {
             synchronized(dialogLock) {
-                // The tri-state key position can be re-announced (same position,
-                // same mode) well after the previous dialog has already
-                // auto-dismissed - e.g. on pickup/tilt, several seconds apart,
-                // with no real slider movement in between. Suppress any repeat
-                // of the exact same state unconditionally, and only clear the
-                // suppression once a genuinely different state is delivered.
-                if (info == lastInfo) {
+                if (info == lastInfo && showing) {
                     return
                 }
 
@@ -302,20 +339,20 @@ class AlertSliderPlugin : OverlayPlugin {
                 launchDozePulse()
 
                 if (info.dialogLocation == KeyHandler.DIALOG_LOCATION_ISLAND) {
-                    if (oldLocation == KeyHandler.DIALOG_LOCATION_SIDE && sideDialog.isShowing) {
-                        sideDialog.dismiss()
+                    if (oldLocation == KeyHandler.DIALOG_LOCATION_SIDE) {
+                        sideDialog?.dismiss()
                     }
-                    islandDialog.setState(info.position, info.mode, info.invertColors)
-                    if (showing && !islandDialog.isShowing) {
-                        islandDialog.show()
+                    getIslandDialog().setState(info.position, info.mode, info.invertColors)
+                    if (showing && getIslandDialog().isShowing != true) {
+                        getIslandDialog().show()
                     }
                 } else {
-                    if (oldLocation == KeyHandler.DIALOG_LOCATION_ISLAND && islandDialog.isShowing) {
-                        islandDialog.dismiss()
+                    if (oldLocation == KeyHandler.DIALOG_LOCATION_ISLAND) {
+                        islandDialog?.dismiss()
                     }
-                    sideDialog.setState(info.position, info.mode, info.invertColors)
-                    if (showing && !sideDialog.isShowing) {
-                        sideDialog.show()
+                    getSideDialog().setState(info.position, info.mode, info.invertColors)
+                    if (showing && getSideDialog().isShowing != true) {
+                        getSideDialog().show()
                     }
                 }
 
@@ -341,19 +378,23 @@ class AlertSliderPlugin : OverlayPlugin {
 
                 showing = false
                 try {
-                    islandDialog.dismissImmediate()
+                    islandDialog?.dismissImmediate()
                 } catch (e: Throwable) {
                     // Ignore
                 }
-                sideDialog = AlertSliderDialog(context, sysuiContext)
-                islandDialog = AlertSliderIslandDialog(context, sysuiContext).apply {
-                    onDismissRequested = { showing = false }
+                try {
+                    sideDialog?.dismiss()
+                } catch (e: Throwable) {
+                    // Ignore
                 }
+                sideDialog = null
+                islandDialog = null
+
                 lastInfo?.let {
                     if (it.dialogLocation == KeyHandler.DIALOG_LOCATION_ISLAND) {
-                        islandDialog.setState(it.position, it.mode, it.invertColors)
+                        getIslandDialog().setState(it.position, it.mode, it.invertColors)
                     } else {
-                        sideDialog.setState(it.position, it.mode, it.invertColors)
+                        getSideDialog().setState(it.position, it.mode, it.invertColors)
                     }
                 }
 
@@ -369,23 +410,30 @@ class AlertSliderPlugin : OverlayPlugin {
         }
 
         private fun launchDozePulse() {
-            if (ambientConfig.pulseOnNotificationEnabled(UserHandle.USER_CURRENT)) {
-                context.sendBroadcastAsUser(Intent(DOZE_INTENT), UserHandle.CURRENT)
+            try {
+                if (ambientConfig.pulseOnNotificationEnabled(UserHandle.USER_CURRENT)) {
+                    sysuiContext.sendBroadcastAsUser(Intent(DOZE_INTENT), UserHandle.CURRENT)
+                }
+            } catch (e: Throwable) {
+                // Ignore if permission denied
             }
         }
 
         fun destroy() {
             removeCallbacksAndMessages(null)
+            showing = false
             try {
-                if (sideDialog.isShowing) sideDialog.dismiss()
+                sideDialog?.dismiss()
             } catch (e: Throwable) {
                 // Ignore
             }
+            sideDialog = null
             try {
-                islandDialog.dismissImmediate()
+                islandDialog?.dismissImmediate()
             } catch (e: Throwable) {
                 // Ignore
             }
+            islandDialog = null
         }
     }
 
@@ -394,6 +442,8 @@ class AlertSliderPlugin : OverlayPlugin {
 
         // Intent
         private const val DOZE_INTENT = "com.android.systemui.doze.pulse"
+        private const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
+        private const val EXTRA_VOLUME_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE"
 
         // Handler
         private const val MSG_DIALOG_SHOW = 1
@@ -402,6 +452,7 @@ class AlertSliderPlugin : OverlayPlugin {
         private const val MSG_DIALOG_UPDATE = 4
         private const val MSG_DIALOG_RECREATE = 5
         private const val MSG_SETTINGS_CHANGED = 6
+        private const val MSG_VOLUME_CHANGED = 7
         private const val DIALOG_TIMEOUT = 1500L
 
         // Dialog
