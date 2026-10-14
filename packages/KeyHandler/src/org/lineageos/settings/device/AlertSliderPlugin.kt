@@ -136,7 +136,6 @@ class AlertSliderPlugin : OverlayPlugin {
                                         ),
                                     )
                                     .sendToTarget()
-                                handler.sendEmptyMessage(MSG_DIALOG_SHOW)
                             } else {
                                 handler.sendMessage(
                                     handler.obtainMessage(MSG_SETTINGS_CHANGED, intent)
