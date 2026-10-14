@@ -76,6 +76,7 @@ class AlertSliderIslandDialog(
     private var currentVolumeStream = AudioManager.STREAM_MUSIC
 
     private var activeShakeAnim: ObjectAnimator? = null
+    private var activeMicroAnim: Animator? = null
     // True during the 170 ms dismiss exit-animation so show() can cancel it instead of bailing.
     private var isDismissing = false
     private var currentRingerMode = -1
@@ -317,6 +318,8 @@ class AlertSliderIslandDialog(
         isDismissing = true
         activeShakeAnim?.cancel()
         activeShakeAnim = null
+        activeMicroAnim?.cancel()
+        activeMicroAnim = null
         applyCutoutPivot()
         setSystemInfoDisabled(false)
 
@@ -760,9 +763,7 @@ class AlertSliderIslandDialog(
                     .setDuration(120)
                     .setInterpolator(DecelerateInterpolator())
                     .withEndAction {
-                        if (ringerMode == AudioManager.RINGER_MODE_VIBRATE) {
-                            playVibrateShakeAnimation()
-                        }
+                        playStateAnimations(ringerMode)
                     }
                     .start()
 
@@ -779,17 +780,266 @@ class AlertSliderIslandDialog(
             .start()
     }
 
-    private fun playVibrateShakeAnimation() {
+    private fun playStateAnimations(ringerMode: Int) {
         if (isDismissing || !isShowing) return
-        val px = 2.5f * context.resources.displayMetrics.density
+
         activeShakeAnim?.cancel()
-        activeShakeAnim = ObjectAnimator.ofFloat(
-            iconView,
-            "translationX",
-            0f, -px, px, -px * 0.7f, px * 0.7f, -px * 0.3f, px * 0.3f, 0f
-        ).apply {
-            duration = 300
-            start()
+        activeShakeAnim = null
+        activeMicroAnim?.cancel()
+        activeMicroAnim = null
+
+        val defaultIconSize = context.resources.getDimension(R.dimen.alert_slider_island_icon_size)
+        val iconW = if (iconView.width > 0) iconView.width.toFloat() else defaultIconSize
+        val iconH = if (iconView.height > 0) iconView.height.toFloat() else defaultIconSize
+        iconView.pivotX = iconW / 2f
+        iconView.pivotY = iconH / 2f
+
+        val graphicW = if (rightGraphicView.width > 0) rightGraphicView.width.toFloat() else defaultIconSize
+        val graphicH = if (rightGraphicView.height > 0) rightGraphicView.height.toFloat() else defaultIconSize
+        rightGraphicView.pivotX = graphicW / 2f
+        rightGraphicView.pivotY = graphicH / 2f
+
+        val volW = if (volumeTextView.width > 0) volumeTextView.width.toFloat() else defaultIconSize
+        val volH = if (volumeTextView.height > 0) volumeTextView.height.toFloat() else defaultIconSize
+        volumeTextView.pivotX = volW / 2f
+        volumeTextView.pivotY = volH / 2f
+
+        iconView.rotation = 0f
+        iconView.translationX = 0f
+        iconView.translationY = 0f
+        rightGraphicView.rotation = 0f
+        rightGraphicView.translationX = 0f
+        rightGraphicView.translationY = 0f
+        rightGraphicView.scaleX = 1f
+        rightGraphicView.scaleY = 1f
+        rightGraphicView.alpha = 1f
+        volumeTextView.scaleX = 1f
+        volumeTextView.scaleY = 1f
+        volumeTextView.alpha = 1f
+
+        val density = context.resources.displayMetrics.density
+
+        when (ringerMode) {
+            AudioManager.RINGER_MODE_NORMAL -> {
+                // Pendulum swing on bell icon
+                iconView.pivotX = iconW / 2f
+                iconView.pivotY = iconH * 0.12f
+                val bellAnim = ObjectAnimator.ofFloat(
+                    iconView,
+                    "rotation",
+                    0f, -18f, 14f, -9f, 5f, -2f, 0f
+                ).apply {
+                    duration = 500
+                    interpolator = DecelerateInterpolator()
+                }
+                bellAnim.start()
+                activeMicroAnim = bellAnim
+
+                if (isMinimalStyle()) {
+                    volumeTextView.scaleX = 0.75f
+                    volumeTextView.scaleY = 0.75f
+                    volumeTextView.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(240)
+                        .setInterpolator(OvershootInterpolator(1.3f))
+                        .start()
+                }
+            }
+            AudioManager.RINGER_MODE_VIBRATE -> {
+                // Phone fast haptic shake
+                val px = 2.5f * density
+                val vibrateAnim = ObjectAnimator.ofFloat(
+                    iconView,
+                    "translationX",
+                    0f, -px, px, -px * 0.7f, px * 0.7f, -px * 0.3f, px * 0.3f, 0f
+                ).apply {
+                    duration = 320
+                }
+                vibrateAnim.start()
+                activeShakeAnim = vibrateAnim
+
+                if (isMinimalStyle()) {
+                    rightGraphicView.scaleX = 0.7f
+                    rightGraphicView.scaleY = 0.7f
+                    rightGraphicView.animate()
+                        .scaleX(1.15f)
+                        .scaleY(1.15f)
+                        .setDuration(160)
+                        .setInterpolator(DecelerateInterpolator())
+                        .withEndAction {
+                            if (!isDismissing && isShowing) {
+                                rightGraphicView.animate()
+                                    .scaleX(1f)
+                                    .scaleY(1f)
+                                    .setDuration(160)
+                                    .setInterpolator(OvershootInterpolator(1.2f))
+                                    .start()
+                            }
+                        }
+                        .start()
+                }
+            }
+            AudioManager.RINGER_MODE_SILENT -> {
+                // Mute bell drop/tilt
+                iconView.pivotX = iconW / 2f
+                iconView.pivotY = iconH * 0.2f
+                val silentAnim = ObjectAnimator.ofFloat(
+                    iconView,
+                    "rotation",
+                    0f, 12f, -4f, 2f, 0f
+                ).apply {
+                    duration = 350
+                    interpolator = DecelerateInterpolator()
+                }
+                silentAnim.start()
+                activeMicroAnim = silentAnim
+
+                if (isMinimalStyle()) {
+                    rightGraphicView.pivotX = graphicW / 2f
+                    rightGraphicView.pivotY = graphicH / 2f
+                    rightGraphicView.scaleX = 0.1f
+                    rightGraphicView.animate()
+                        .scaleX(1f)
+                        .setDuration(240)
+                        .setInterpolator(DecelerateInterpolator(1.5f))
+                        .start()
+                }
+            }
+            KeyHandler.ZEN_PRIORITY_ONLY -> {
+                // Alert star pop
+                iconView.scaleX = 0.85f
+                iconView.scaleY = 0.85f
+                iconView.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(220)
+                    .setInterpolator(OvershootInterpolator(1.25f))
+                    .start()
+
+                if (isMinimalStyle()) {
+                    rightGraphicView.rotation = -60f
+                    rightGraphicView.scaleX = 0.7f
+                    rightGraphicView.scaleY = 0.7f
+                    rightGraphicView.animate()
+                        .rotation(0f)
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(280)
+                        .setInterpolator(OvershootInterpolator(1.2f))
+                        .start()
+                }
+            }
+            KeyHandler.ZEN_TOTAL_SILENCE -> {
+                // Strict silence stamp
+                iconView.scaleX = 1.15f
+                iconView.scaleY = 1.15f
+                iconView.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(180)
+                    .setInterpolator(DecelerateInterpolator())
+                    .start()
+
+                if (isMinimalStyle()) {
+                    rightGraphicView.scaleX = 1.35f
+                    rightGraphicView.scaleY = 1.35f
+                    rightGraphicView.alpha = 0.4f
+                    rightGraphicView.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .alpha(1f)
+                        .setDuration(220)
+                        .setInterpolator(DecelerateInterpolator(1.5f))
+                        .start()
+                }
+            }
+            KeyHandler.ZEN_ALARMS_ONLY -> {
+                // Alarm bell jiggle
+                val alarmAnim = ObjectAnimator.ofFloat(
+                    iconView,
+                    "rotation",
+                    0f, -8f, 8f, -5f, 5f, -2f, 2f, 0f
+                ).apply {
+                    duration = 380
+                    interpolator = DecelerateInterpolator()
+                }
+                alarmAnim.start()
+                activeMicroAnim = alarmAnim
+
+                if (isMinimalStyle()) {
+                    rightGraphicView.translationY = 4f * density
+                    rightGraphicView.scaleX = 0.8f
+                    rightGraphicView.scaleY = 0.8f
+                    rightGraphicView.animate()
+                        .translationY(0f)
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(260)
+                        .setInterpolator(OvershootInterpolator(1.2f))
+                        .start()
+                }
+            }
+            KeyHandler.TORCH_ON -> {
+                // Torch flare burst
+                iconView.scaleX = 0.85f
+                iconView.scaleY = 0.85f
+                iconView.animate()
+                    .scaleX(1.15f)
+                    .scaleY(1.15f)
+                    .setDuration(130)
+                    .setInterpolator(DecelerateInterpolator())
+                    .withEndAction {
+                        if (!isDismissing && isShowing) {
+                            iconView.animate()
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .setDuration(150)
+                                .setInterpolator(OvershootInterpolator(1.1f))
+                                .start()
+                        }
+                    }
+                    .start()
+
+                if (isMinimalStyle()) {
+                    rightGraphicView.translationX = -3f * density
+                    rightGraphicView.scaleX = 0.7f
+                    rightGraphicView.scaleY = 0.85f
+                    rightGraphicView.alpha = 0.3f
+                    rightGraphicView.animate()
+                        .translationX(0f)
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .alpha(1f)
+                        .setDuration(240)
+                        .setInterpolator(DecelerateInterpolator())
+                        .start()
+                }
+            }
+            KeyHandler.TORCH_OFF -> {
+                // Torch cool-down settle
+                iconView.scaleX = 1.15f
+                iconView.scaleY = 1.15f
+                iconView.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(200)
+                    .setInterpolator(DecelerateInterpolator())
+                    .start()
+
+                if (isMinimalStyle()) {
+                    rightGraphicView.scaleX = 1.25f
+                    rightGraphicView.scaleY = 1.25f
+                    rightGraphicView.alpha = 0.7f
+                    rightGraphicView.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .alpha(1f)
+                        .setDuration(240)
+                        .setInterpolator(DecelerateInterpolator())
+                        .start()
+                }
+            }
         }
     }
 
@@ -960,6 +1210,8 @@ class AlertSliderIslandDialog(
         dialogView.animate().cancel()
         activeShakeAnim?.cancel()
         activeShakeAnim = null
+        activeMicroAnim?.cancel()
+        activeMicroAnim = null
         frameView.animate().cancel()
 
         dialogView.alpha = 1f
@@ -983,6 +1235,22 @@ class AlertSliderIslandDialog(
             v.translationX = 0f
             v.translationY = 0f
         }
+        val defaultIconSize = context.resources.getDimension(R.dimen.alert_slider_island_icon_size)
+        val iconW = if (iconView.width > 0) iconView.width.toFloat() else defaultIconSize
+        val iconH = if (iconView.height > 0) iconView.height.toFloat() else defaultIconSize
+        iconView.pivotX = iconW / 2f
+        iconView.pivotY = iconH / 2f
+
+        val graphicW = if (rightGraphicView.width > 0) rightGraphicView.width.toFloat() else defaultIconSize
+        val graphicH = if (rightGraphicView.height > 0) rightGraphicView.height.toFloat() else defaultIconSize
+        rightGraphicView.pivotX = graphicW / 2f
+        rightGraphicView.pivotY = graphicH / 2f
+
+        val volW = if (volumeTextView.width > 0) volumeTextView.width.toFloat() else defaultIconSize
+        val volH = if (volumeTextView.height > 0) volumeTextView.height.toFloat() else defaultIconSize
+        volumeTextView.pivotX = volW / 2f
+        volumeTextView.pivotY = volH / 2f
+
         isHorizontalSwipe = false
     }
 
@@ -1034,9 +1302,7 @@ class AlertSliderIslandDialog(
                 .setDuration(190)
                 .setInterpolator(DecelerateInterpolator())
                 .withEndAction {
-                    if (currentRingerMode == AudioManager.RINGER_MODE_VIBRATE) {
-                        playVibrateShakeAnimation()
-                    }
+                    playStateAnimations(currentRingerMode)
                 }
                 .start()
 
@@ -1091,9 +1357,7 @@ class AlertSliderIslandDialog(
             .setDuration(190)
             .setInterpolator(DecelerateInterpolator())
             .withEndAction {
-                if (currentRingerMode == AudioManager.RINGER_MODE_VIBRATE) {
-                    playVibrateShakeAnimation()
-                }
+                playStateAnimations(currentRingerMode)
             }
             .start()
 
@@ -1128,6 +1392,8 @@ class AlertSliderIslandDialog(
         isDismissing = true
         activeShakeAnim?.cancel()
         activeShakeAnim = null
+        activeMicroAnim?.cancel()
+        activeMicroAnim = null
         iconView.translationX = 0f
         applyCutoutPivot()
         setSystemInfoDisabled(false)
@@ -1163,6 +1429,8 @@ class AlertSliderIslandDialog(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        activeMicroAnim?.cancel()
+        activeMicroAnim = null
         activeShakeAnim?.cancel()
         activeShakeAnim = null
         setSystemInfoDisabled(false)
@@ -1170,6 +1438,8 @@ class AlertSliderIslandDialog(
 
     override fun onStop() {
         super.onStop()
+        activeMicroAnim?.cancel()
+        activeMicroAnim = null
         activeShakeAnim?.cancel()
         activeShakeAnim = null
         setSystemInfoDisabled(false)
