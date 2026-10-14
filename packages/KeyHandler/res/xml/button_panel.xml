@@ -60,6 +60,17 @@
             android:dependency="config_show_dialog"
             app:useSimpleSummaryProvider="true" />
 
+        <ListPreference
+            android:key="alert_slider_island_style"
+            android:dialogTitle="@string/alert_slider_island_style_title"
+            android:entries="@array/alert_slider_island_style_entries"
+            android:entryValues="@array/alert_slider_island_style_entry_values"
+            android:defaultValue="0"
+            android:title="@string/alert_slider_island_style_title"
+            android:summary="@string/alert_slider_island_style_summary"
+            android:dependency="config_show_dialog"
+            app:useSimpleSummaryProvider="true" />
+
         <SwitchPreferenceCompat
             android:key="config_invert_colors"
             android:title="@string/alert_slider_invert_colors_title"

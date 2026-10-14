@@ -42,10 +42,13 @@ class AlertSliderDialog(private val context: Context, private val sysuiContext: 
 
     private val rotation: Int
         get() {
-            return window?.decorView?.display?.rotation
-                ?: (sysuiContext.getSystemService(DisplayManager::class.java)
-                    ?: context.getSystemService(DisplayManager::class.java))?.getDisplay(Display.DEFAULT_DISPLAY)?.rotation
-                ?: Surface.ROTATION_0
+            return (try {
+                window?.decorView?.display?.rotation
+            } catch (e: Throwable) {
+                null
+            }) ?: (sysuiContext.getSystemService(DisplayManager::class.java)
+                ?: context.getSystemService(DisplayManager::class.java))?.getDisplay(Display.DEFAULT_DISPLAY)?.rotation
+            ?: Surface.ROTATION_0
         }
     private val isLandscape: Boolean
         get() = rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270
