@@ -1,5 +1,6 @@
 package com.oplus.os;
 
+import android.app.ActivityThread;
 import android.content.Context;
 import android.os.Build;
 import android.os.SystemProperties;
@@ -35,13 +36,45 @@ public class OplusBuild {
     public static final int UNKNOWN = 0;
     private static final String[] VERSIONS = {"V1.0", "V1.2", "V1.4", "V2.0", "V2.1", "V3.0", "V3.1", "V3.2", "V5.0", "V5.1", "V5.2", "V6.0", "V6.1", "V6.2", "V6.7", "V7", "V7.1", "V7.2", "V11", "V11.1", "V11.2", "V11.3", "V12", "V12.1", "V12.2", null};
 
+    private static boolean isAllowed(String name) {
+        if (TextUtils.isEmpty(name)) {
+            return false;
+        }
+        return name.contains("camera")
+            || name.contains("gallery")
+            || name.contains("aiunit")
+            || name.contains("scanengine");
+    }
+
+    private static boolean isCallerAllowed() {
+        return isAllowed(ActivityThread.currentPackageName())
+            || isAllowed(ActivityThread.currentProcessName());
+    }
+
     public static class VERSION {
-        public static final String RELEASE = "V12.1";
+        public static final String RELEASE = getReleaseVersion();
         public static final int SDK_VERSION = getOplusOSVERSION();
-        public static final int SDK_SUB_VERSION = 19;
+        public static final int SDK_SUB_VERSION = getSubVersion();
+    }
+
+    public static String getReleaseVersion() {
+        if (!isCallerAllowed()) {
+            return "";
+        }
+        return "V12.1";
+    }
+
+    public static int getSubVersion() {
+        if (!isCallerAllowed()) {
+            return 0;
+        }
+        return 19;
     }
 
     public static int getOplusOSVERSION() {
+        if (!isCallerAllowed()) {
+            return UNKNOWN;
+        }
         for (int i = VERSIONS.length - 2; i >= 0; i--) {
             if (!TextUtils.isEmpty(VERSION.RELEASE) && VERSION.RELEASE.startsWith(VERSIONS[i])) {
                 return i + 1;
@@ -81,6 +114,9 @@ public class OplusBuild {
     }
 
     public static String getVersionProp(String property) {
+        if (!isCallerAllowed()) {
+            return "unknown";
+        }
         return "V12.1";
     }
 }
