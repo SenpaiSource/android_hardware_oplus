@@ -1,5 +1,6 @@
 package com.oplus.content;
 
+import android.app.ActivityThread;
 import android.os.SystemProperties;
 import android.text.TextUtils;
 
@@ -12,6 +13,21 @@ public class OplusFeatureConfigManager {
 
     public final List<OnFeatureActionObserver> observers = new CopyOnWriteArrayList<>();
 
+    private static boolean isAllowed(String name) {
+        if (TextUtils.isEmpty(name)) {
+            return false;
+        }
+        return name.contains("camera")
+            || name.contains("gallery")
+            || name.contains("aiunit")
+            || name.contains("scanengine");
+    }
+
+    private static boolean isCallerAllowed() {
+        return isAllowed(ActivityThread.currentPackageName())
+            || isAllowed(ActivityThread.currentProcessName());
+    }
+
     public static OplusFeatureConfigManager getInstance() {
         if (sOplusFeatureConfigManager == null) {
             sOplusFeatureConfigManager = new OplusFeatureConfigManager();
@@ -20,6 +36,9 @@ public class OplusFeatureConfigManager {
     }
 
     public boolean hasFeature(String name) {
+        if (!isCallerAllowed()) {
+            return false;
+        }
         if ("oplus.software.vibrator_lmvibrator".equals(name)) {
             // OnePlus 7/8 series use old OnePlus base camera. Don't let this feature break haptic feedback.
             if (useOnePlusBaseCamera()) {
