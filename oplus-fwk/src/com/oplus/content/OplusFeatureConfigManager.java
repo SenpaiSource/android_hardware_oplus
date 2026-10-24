@@ -46,6 +46,11 @@ public class OplusFeatureConfigManager {
             }
             return true;
         }
+        if ("oplus.software.vibrator_luxunvibrator".equals(name)) {
+            // COUI seekbar / number-picker haptics go through com.oplus.os.LinearmotorVibrator,
+            // which oplus-fwk now backs with the AOSP vibrator. Enable so sliders feel stock.
+            return true;
+        }
         return false;
     }
 
