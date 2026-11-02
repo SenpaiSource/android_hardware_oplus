@@ -3,7 +3,6 @@
 hidl_interface {
     name: "vendor.oplus.hardware.cwb@1.0",
     root: "vendor.oplus",
-    system_ext_specific: true,
     srcs: [
         "types.hal",
         "ICwbCallback.hal",
