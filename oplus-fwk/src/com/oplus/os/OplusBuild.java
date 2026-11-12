@@ -38,17 +38,34 @@ public class OplusBuild {
     public static final int UNKNOWN = 0;
     private static final String[] VERSIONS = {"V1.0", "V1.2", "V1.4", "V2.0", "V2.1", "V3.0", "V3.1", "V3.2", "V5.0", "V5.1", "V5.2", "V6.0", "V6.1", "V6.2", "V6.7", "V7", "V7.1", "V7.2", "V11", "V11.1", "V11.2", "V11.3", "V12", "V12.1", "V12.2", null};
 
+    private static final String[] ALLOWED_CALLERS = {
+        "camera",
+        "gallery",
+        "aiunit",
+        "scanengine",
+        "aon",
+        "stdid",
+        "opencapability",
+        "encryption",
+        "coloros.video",
+        "appplatform",
+        "exsystemservice",
+    };
+
     private static boolean isAllowed(String name) {
         if (TextUtils.isEmpty(name)) {
             return false;
         }
-        return name.contains("camera")
-            || name.contains("gallery")
-            || name.contains("aiunit")
-            || name.contains("scanengine");
+        for (String token : ALLOWED_CALLERS) {
+            if (name.contains(token)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private static boolean isCallerAllowed() {
+    /** Returns true when the current process belongs to the OPlus camera/gallery/AI stack. */
+    public static boolean isCallerAllowed() {
         return isAllowed(ActivityThread.currentPackageName())
             || isAllowed(ActivityThread.currentProcessName());
     }
@@ -133,6 +150,6 @@ public class OplusBuild {
         if (!isCallerAllowed()) {
             return "unknown";
         }
-        return "V12.1";
+        return SystemProperties.get("ro.build.version.oplusrom", "V12.1");
     }
 }
