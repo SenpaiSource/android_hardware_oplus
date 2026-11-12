@@ -83,8 +83,14 @@ public class OplusImageHdrImpl {
      * Backs isUHdrImage(). Only mIsJpegR is read, so decode small.
      */
     public static GainmapInfo demuxFile(FileDescriptor fd) {
-        BitmapFactory.Options options = optionsFor(PROBE_SAMPLE_SIZE);
-        Bitmap bitmap = BitmapFactory.decodeFileDescriptor(fd, null, options);
+        return demuxBitmap(BitmapFactory.decodeFileDescriptor(fd, null, optionsFor(PROBE_SAMPLE_SIZE)));
+    }
+
+    public static GainmapInfo demuxFile(InputStream is) {
+        return demuxBitmap(BitmapFactory.decodeStream(is, null, optionsFor(PROBE_SAMPLE_SIZE)));
+    }
+
+    private static GainmapInfo demuxBitmap(Bitmap bitmap) {
         if (bitmap == null) {
             return null;
         }
@@ -98,8 +104,15 @@ public class OplusImageHdrImpl {
      * The base (SDR) image with the gainmap dropped, so nothing downstream
      * tone-maps it a second time.
      */
+    public static Bitmap decodeBaseJpeg(FileDescriptor fd, BitmapFactory.Options options) {
+        return stripGainmap(BitmapFactory.decodeFileDescriptor(fd, null, options));
+    }
+
     public static Bitmap decodeBaseJpeg(InputStream is, BitmapFactory.Options options) {
-        Bitmap bitmap = BitmapFactory.decodeStream(is, null, options);
+        return stripGainmap(BitmapFactory.decodeStream(is, null, options));
+    }
+
+    private static Bitmap stripGainmap(Bitmap bitmap) {
         if (bitmap != null) {
             bitmap.setGainmap(null);
         }
