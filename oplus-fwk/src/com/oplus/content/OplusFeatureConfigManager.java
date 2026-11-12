@@ -1,8 +1,8 @@
 package com.oplus.content;
 
-import android.app.ActivityThread;
 import android.os.SystemProperties;
 import android.text.TextUtils;
+import com.oplus.os.OplusBuild;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -13,21 +13,6 @@ public class OplusFeatureConfigManager {
 
     public final List<OnFeatureActionObserver> observers = new CopyOnWriteArrayList<>();
 
-    private static boolean isAllowed(String name) {
-        if (TextUtils.isEmpty(name)) {
-            return false;
-        }
-        return name.contains("camera")
-            || name.contains("gallery")
-            || name.contains("aiunit")
-            || name.contains("scanengine");
-    }
-
-    private static boolean isCallerAllowed() {
-        return isAllowed(ActivityThread.currentPackageName())
-            || isAllowed(ActivityThread.currentProcessName());
-    }
-
     public static OplusFeatureConfigManager getInstance() {
         if (sOplusFeatureConfigManager == null) {
             sOplusFeatureConfigManager = new OplusFeatureConfigManager();
@@ -36,7 +21,7 @@ public class OplusFeatureConfigManager {
     }
 
     public boolean hasFeature(String name) {
-        if (name == null || !isCallerAllowed()) {
+        if (name == null || !OplusBuild.isCallerAllowed()) {
             return false;
         }
         if ("oplus.software.vibrator_lmvibrator".equals(name)) {
