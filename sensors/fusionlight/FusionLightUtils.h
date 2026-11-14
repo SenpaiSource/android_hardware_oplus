@@ -45,6 +45,7 @@ struct CwbConfig {
     int32_t reference_height = 0;
     bool screenshot_weighted = false;
     std::chrono::milliseconds screenshot_period{0};
+    std::chrono::milliseconds valid_event_period{90};
     std::vector<int32_t> weights;
 };
 
