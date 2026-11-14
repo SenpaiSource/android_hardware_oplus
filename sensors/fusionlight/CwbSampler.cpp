@@ -256,51 +256,88 @@ void CwbSampler::threadLoop() {
     std::shared_ptr<IDisplayConfig> service;
     sp<GraphicBuffer> buffer;
     Rect crop;
+    bool in_flight = false;
+    uint64_t request = 0;
+    std::chrono::nanoseconds frame_start{0};
 
     for (;;) {
-        {
-            std::unique_lock lock(state->mutex);
-            state->condition.wait_until(lock, next_sample,
-                                        [&] { return !state->active || state->immediate; });
-            if (!state->active) {
-                return;
+        if (!in_flight) {
+            {
+                std::unique_lock lock(state->mutex);
+                state->condition.wait_until(lock, next_sample,
+                                            [&] { return !state->active || state->immediate; });
+                if (!state->active) {
+                    return;
+                }
+                state->immediate = false;
             }
-            state->immediate = false;
-        }
 
-        if (service == nullptr || service->asBinder().get() == nullptr ||
-            !AIBinder_isAlive(service->asBinder().get())) {
-            service = GetService<IDisplayConfig>();
-            buffer.clear();
-        }
-        if (service == nullptr) {
-            LOG(WARNING) << "IDisplayConfig is unavailable";
-            if (sample_callback) {
-                sample_callback(std::nullopt);
+            if (service == nullptr || service->asBinder().get() == nullptr ||
+                !AIBinder_isAlive(service->asBinder().get())) {
+                service = GetService<IDisplayConfig>();
+                buffer.clear();
             }
-            next_sample = std::chrono::steady_clock::now() + kServiceRetryPeriod;
-            continue;
-        }
-
-        if (buffer == nullptr) {
-            Attributes attributes;
-            const auto status = service->getActiveBuiltinDisplayAttributes(&attributes);
-            if (!status.isOk() || attributes.xRes <= 0 || attributes.yRes <= 0) {
-                LOG(WARNING) << "Unable to get active display resolution: "
-                             << status.getDescription();
+            if (service == nullptr) {
+                LOG(WARNING) << "IDisplayConfig is unavailable";
                 if (sample_callback) {
                     sample_callback(std::nullopt);
                 }
                 next_sample = std::chrono::steady_clock::now() + kServiceRetryPeriod;
                 continue;
             }
-            const int32_t width = attributes.xRes;
-            const int32_t height = attributes.yRes;
-            crop = ScaleCrop(config, width, height);
-            buffer = sp<GraphicBuffer>::make(width, height, PIXEL_FORMAT_RGB_888, 1, kBufferUsage,
-                                             "FusionLightCWB");
-            if (buffer->initCheck() != NO_ERROR) {
-                LOG(ERROR) << "Unable to allocate FusionLight CWB buffer: " << buffer->initCheck();
+
+            if (buffer == nullptr) {
+                Attributes attributes;
+                const auto status = service->getActiveBuiltinDisplayAttributes(&attributes);
+                if (!status.isOk() || attributes.xRes <= 0 || attributes.yRes <= 0) {
+                    LOG(WARNING) << "Unable to get active display resolution: "
+                                 << status.getDescription();
+                    if (sample_callback) {
+                        sample_callback(std::nullopt);
+                    }
+                    next_sample = std::chrono::steady_clock::now() + kServiceRetryPeriod;
+                    continue;
+                }
+                const int32_t width = attributes.xRes;
+                const int32_t height = attributes.yRes;
+                crop = ScaleCrop(config, width, height);
+                buffer = sp<GraphicBuffer>::make(width, height, PIXEL_FORMAT_RGB_888, 1,
+                                                 kBufferUsage, "FusionLightCWB");
+                if (buffer->initCheck() != NO_ERROR) {
+                    LOG(ERROR) << "Unable to allocate FusionLight CWB buffer: "
+                               << buffer->initCheck();
+                    buffer.clear();
+                    if (sample_callback) {
+                        sample_callback(std::nullopt);
+                    }
+                    next_sample = std::chrono::steady_clock::now() + kServiceRetryPeriod;
+                    continue;
+                }
+                const int32_t crop_size = (crop.right - crop.left) * (crop.bottom - crop.top);
+                const bool weighted =
+                        config.screenshot_weighted && config.weights.size() == crop_size;
+                LOG(INFO) << "FusionLight CWB geometry=" << width << 'x' << height << " crop=["
+                          << crop.left << ',' << crop.top << ',' << crop.right << ',' << crop.bottom
+                          << "] weighted=" << weighted;
+                if (config.screenshot_weighted && !weighted) {
+                    LOG(WARNING) << "CWB crop size changed from the profile; using unweighted "
+                                    "sampling";
+                }
+            }
+
+            {
+                std::lock_guard lock(state->mutex);
+                request = ++state->active_request;
+                state->immediate = false;
+            }
+            frame_start = GetBootTime();
+            const auto callback = ndk::SharedRefBase::make<DisplayCallback>(state, request);
+            const auto request_status = service->setCWBOutputBuffer(
+                    callback, kPrimaryDisplay, crop, true, ::android::dupToAidl(buffer->handle));
+            if (!request_status.isOk()) {
+                LOG(WARNING) << "IDisplayConfig::setCWBOutputBuffer failed: "
+                             << request_status.getDescription();
+                service.reset();
                 buffer.clear();
                 if (sample_callback) {
                     sample_callback(std::nullopt);
@@ -308,41 +345,12 @@ void CwbSampler::threadLoop() {
                 next_sample = std::chrono::steady_clock::now() + kServiceRetryPeriod;
                 continue;
             }
-            const int32_t crop_size = (crop.right - crop.left) * (crop.bottom - crop.top);
-            const bool weighted = config.screenshot_weighted && config.weights.size() == crop_size;
-            LOG(INFO) << "FusionLight CWB geometry=" << width << 'x' << height << " crop=["
-                      << crop.left << ',' << crop.top << ',' << crop.right << ',' << crop.bottom
-                      << "] weighted=" << weighted;
-            if (config.screenshot_weighted && !weighted) {
-                LOG(WARNING) << "CWB crop size changed from the profile; using unweighted "
-                                "sampling";
-            }
+            in_flight = true;
         }
 
-        uint64_t request;
-        {
-            std::lock_guard lock(state->mutex);
-            request = ++state->active_request;
-        }
-        const auto frame_start = GetBootTime();
-        const auto callback = ndk::SharedRefBase::make<DisplayCallback>(state, request);
-        const auto request_status = service->setCWBOutputBuffer(
-                callback, kPrimaryDisplay, crop, true, ::android::dupToAidl(buffer->handle));
-        if (!request_status.isOk()) {
-            LOG(WARNING) << "IDisplayConfig::setCWBOutputBuffer failed: "
-                         << request_status.getDescription();
-            service.reset();
-            buffer.clear();
-            if (sample_callback) {
-                sample_callback(std::nullopt);
-            }
-            next_sample = std::chrono::steady_clock::now() + kServiceRetryPeriod;
-            continue;
-        }
-
-        int32_t error;
-        std::chrono::nanoseconds frame_end;
-        bool completed;
+        int32_t error = 0;
+        std::chrono::nanoseconds frame_end{0};
+        bool completed = false;
         {
             std::unique_lock lock(state->mutex);
             completed = state->condition.wait_for(lock, kRequestTimeout, [&] {
@@ -354,16 +362,34 @@ void CwbSampler::threadLoop() {
             if (completed) {
                 error = state->completed_error;
                 frame_end = state->completed_time;
-            } else {
-                ++state->active_request;
+                in_flight = false;
             }
         }
 
-        std::optional<CwbSample> sample;
         if (!completed) {
-            LOG(WARNING) << "Timed out waiting for CWB completion";
-            buffer.clear();
-        } else if (error != 0) {
+            // On CMD-mode panels, composer holds the CWB buffer until the next display frame
+            // commit. Keep waiting on the already-queued buffer while the service is alive
+            // rather than duplicating queue entries or failing compensation.
+            if (service == nullptr || service->asBinder().get() == nullptr ||
+                !AIBinder_isAlive(service->asBinder().get())) {
+                LOG(WARNING) << "IDisplayConfig died while waiting for CWB completion";
+                in_flight = false;
+                service.reset();
+                buffer.clear();
+                {
+                    std::lock_guard lock(state->mutex);
+                    ++state->active_request;
+                }
+                if (sample_callback) {
+                    sample_callback(std::nullopt);
+                }
+                next_sample = std::chrono::steady_clock::now() + kServiceRetryPeriod;
+            }
+            continue;
+        }
+
+        std::optional<CwbSample> sample;
+        if (error != 0) {
             LOG(WARNING) << "CWB capture failed with error " << error;
         } else {
             sample = ReadSample(buffer, crop, config, frame_start, frame_end);
