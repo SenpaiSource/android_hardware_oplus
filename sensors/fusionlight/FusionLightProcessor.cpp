@@ -29,7 +29,6 @@ constexpr int64_t kSampleGracePeriods = 2;
 constexpr int64_t kCaptureStallPeriods = 8;
 constexpr double kBrightnessChangeThreshold = 0.05;
 constexpr auto kSampleFreshnessMargin = 100ms;
-constexpr auto kScreenOnGracePeriod = 1500ms;
 constexpr auto kMedianResetGap = 1000ms;
 struct PendingEvent {
     Event event;
@@ -402,16 +401,6 @@ struct FusionLightProcessor::SharedState {
                kBrightnessChangeThreshold * last_reliable_brightness;
     }
 
-    bool isSampleReliableLocked(std::chrono::nanoseconds event_time,
-                                int32_t current_brightness) const {
-        if (last_screen_on_time > 0ns && event_time > last_screen_on_time &&
-            event_time - last_screen_on_time < kScreenOnGracePeriod &&
-            last_reliable_lux.has_value()) {
-            return false;
-        }
-        return isBrightnessWithinToleranceLocked(current_brightness);
-    }
-
     void calibrateWithSampleLocked(PendingEvent& pending_event, const CwbSample& sample) {
         const auto event_time = std::chrono::nanoseconds(pending_event.event.timestamp);
         const auto lux =
@@ -432,13 +421,6 @@ struct FusionLightProcessor::SharedState {
 
     bool updateCalibrationLocked(PendingEvent& pending_event) {
         const auto event_time = std::chrono::nanoseconds(pending_event.event.timestamp);
-        if (!isSampleReliableLocked(event_time, pending_event.brightness)) {
-            if (!cwb_failed && last_reliable_lux.has_value()) {
-                pending_event.event.u.scalar = *last_reliable_lux;
-                return true;
-            }
-            return false;
-        }
         const auto max_age = config.cwb.screenshot_period + kSampleFreshnessMargin;
         const auto sample =
                 SelectScreenSample(event_time, last_brightness_change_time, max_age, screen_samples);
@@ -503,7 +485,6 @@ struct FusionLightProcessor::SharedState {
     std::deque<std::pair<std::chrono::nanoseconds, float>> median_window;
     std::chrono::nanoseconds minimum_frame_start{0};
     std::chrono::nanoseconds last_brightness_change_time{0};
-    std::chrono::nanoseconds last_screen_on_time{0};
     std::optional<float> last_reliable_lux;
     int32_t brightness = -1;
     int32_t last_reliable_brightness = -1;
@@ -569,7 +550,6 @@ void FusionLightProcessor::setEnabled(bool enabled) {
             state_->delivery.clear();
             state_->minimum_frame_start = 0ns;
             state_->last_brightness_change_time = 0ns;
-            state_->last_screen_on_time = 0ns;
             state_->last_reliable_lux.reset();
             state_->brightness = -1;
             state_->last_reliable_brightness = -1;
@@ -591,7 +571,6 @@ void FusionLightProcessor::setEnabled(bool enabled) {
         state_->delivery.clear();
         state_->minimum_frame_start = 0ns;
         state_->last_brightness_change_time = 0ns;
-        state_->last_screen_on_time = 0ns;
         state_->last_reliable_lux.reset();
         state_->brightness = -1;
         state_->last_reliable_brightness = -1;
@@ -640,7 +619,6 @@ void FusionLightProcessor::processScreenOff(Event event, const Channels& raw_cha
             state_->screen_samples.clear();
             state_->minimum_frame_start = 0ns;
             state_->last_brightness_change_time = 0ns;
-            state_->last_screen_on_time = 0ns;
             state_->brightness = brightness;
             state_->last_reliable_brightness = -1;
             state_->cwb_failed = false;
@@ -708,21 +686,24 @@ void FusionLightProcessor::process(const Event& event, int32_t fusion_light_hand
                 return;
             }
             brightness_changed = brightness != state_->brightness;
-            const bool significant_change =
-                    brightness_changed && !state_->isBrightnessWithinToleranceLocked(brightness);
             start_sampler = state_->brightness <= 0;
+            const bool significant_change =
+                    !start_sampler && brightness_changed &&
+                    !state_->isBrightnessWithinToleranceLocked(brightness);
             if (start_sampler) {
                 state_->minimum_frame_start = event_time;
-                state_->last_screen_on_time = event_time;
                 state_->last_brightness_change_time = event_time;
                 state_->last_reliable_brightness = -1;
+                state_->last_reliable_lux.reset();
                 state_->cwb_failed = false;
             }
             state_->checkCwbStallLocked(event_time);
             if (brightness_changed) {
                 state_->finishWaitingLocked();
+                state_->brightness = brightness;
                 if (significant_change) {
                     state_->last_brightness_change_time = event_time;
+                    state_->minimum_frame_start = event_time;
                     while (!state_->screen_samples.empty() &&
                            state_->screen_samples.front().frame_end < event_time) {
                         state_->screen_samples.pop_front();
