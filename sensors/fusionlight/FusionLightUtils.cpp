@@ -480,8 +480,12 @@ bool ParseConfig(std::istream& stream, FusionConfig& config, std::string& error)
         !ReadRequiredInt(crop, "RightBottomY", config.cwb.crop_bottom) ||
         !ReadRequiredInt(resolution, "Width", config.cwb.reference_width) ||
         !ReadRequiredInt(resolution, "Height", config.cwb.reference_height) ||
-        (common.isMember("CWBScreenshotPeriod") &&
+        (common.isMember("SamplePeriodMillis") &&
+         !ReadRequiredDuration(common, "SamplePeriodMillis", config.cwb.screenshot_period)) ||
+        (!common.isMember("SamplePeriodMillis") && common.isMember("CWBScreenshotPeriod") &&
          !ReadRequiredDuration(common, "CWBScreenshotPeriod", config.cwb.screenshot_period)) ||
+        (common.isMember("ValidEventPeriod") &&
+         !ReadRequiredDuration(common, "ValidEventPeriod", config.cwb.valid_event_period)) ||
         (common.isMember("IRRatioFormulaType") &&
          !ReadInt(common["IRRatioFormulaType"], config.ir_ratio_formula)) ||
         (common.isMember("LowLightAccuracy") &&
@@ -491,7 +495,7 @@ bool ParseConfig(std::istream& stream, FusionConfig& config, std::string& error)
         error = "invalid CommonConfig";
         return false;
     }
-    if (!common.isMember("CWBScreenshotPeriod")) {
+    if (!common.isMember("SamplePeriodMillis") && !common.isMember("CWBScreenshotPeriod")) {
         config.cwb.screenshot_period = kDefaultScreenshotPeriod;
     }
     if (config.ir_ratio_formula != 0 && config.ir_ratio_formula != 2) {
