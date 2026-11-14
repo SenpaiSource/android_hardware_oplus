@@ -280,7 +280,7 @@ aidl_interface {
 aidl_interface {
     name: "vendor.oplus.hardware.cwb",
     system_ext_specific: true,
-    odm_available: true,
+    vendor_available: true,
     local_include_dir: "aidl",
     srcs: ["aidl/vendor/oplus/hardware/cwb/*.aidl"],
     stability: "vintf",
