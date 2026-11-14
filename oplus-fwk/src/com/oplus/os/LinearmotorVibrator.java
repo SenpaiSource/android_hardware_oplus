@@ -7,6 +7,7 @@ package com.oplus.os;
 
 import android.content.Context;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -29,6 +30,9 @@ import android.os.VibratorManager;
  */
 public class LinearmotorVibrator {
     private static final String TAG = "LinearmotorVibrator";
+    private static final long SHUTTER_DEBOUNCE_WINDOW_MS = 200;
+
+    private static long sLastShutterVibrateMs = 0;
 
     private final Context mContext;
     private final Vibrator mVibrator;
@@ -69,6 +73,14 @@ public class LinearmotorVibrator {
     public void vibrate(WaveformEffect effect) {
         if (mVibrator == null) {
             return;
+        }
+        int effectType = effect != null ? effect.getEffectType() : 0;
+        if (effectType == 1 || effectType == 68) {
+            long now = SystemClock.uptimeMillis();
+            if (now - sLastShutterVibrateMs < SHUTTER_DEBOUNCE_WINDOW_MS) {
+                return;
+            }
+            sLastShutterVibrateMs = now;
         }
         // Plain Vibrator.vibrate() uses VibrationAttributes.USAGE_UNKNOWN, which the framework
         // resolves to the "media" vibration intensity. That is deliberate: like stock OPlus, the
