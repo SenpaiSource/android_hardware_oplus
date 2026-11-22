@@ -73,6 +73,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
                     Intent.ACTION_BOOT_COMPLETED -> {
                         refreshSettings()
                         populateKeyState(true)
+                        WifiLatencyManager.onBootCompleted(context)
                     }
 
                     CYCLE_ACTION -> cycleNextMode()
@@ -98,6 +99,7 @@ class KeyHandler(private val context: Context) : DeviceKeyHandler {
             },
             Context.RECEIVER_EXPORTED,
         )
+        WifiLatencyManager.init(context)
     }
 
     override fun handleKeyEvent(event: KeyEvent): KeyEvent? {
