@@ -113,9 +113,7 @@ public class OplusImageHdrImpl {
     }
 
     private static Bitmap stripGainmap(Bitmap bitmap) {
-        if (bitmap != null) {
-            bitmap.setGainmap(null);
-        }
+        // Do not strip Gainmap on AOSP so HWUI and Gallery retain Ultra HDR gainmap and brightness
         return bitmap;
     }
 
